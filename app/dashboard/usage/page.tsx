@@ -102,7 +102,7 @@ export default function UsagePage() {
     const smsCost = billingData?.usage?.sms_cost || 0;
     const voiceCount = billingData?.usage?.voice_calls || 0;
     const smsCount = billingData?.usage?.sms_messages || 0;
-    const totalUsageCost = billingData?.total_cost || (voiceCost + smsCost);
+    const totalUsageCost = billingData?.total_spent || (voiceCost + smsCost);
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500">

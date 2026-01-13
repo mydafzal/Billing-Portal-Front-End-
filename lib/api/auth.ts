@@ -12,14 +12,12 @@ export async function login(email: string, password: string): Promise<User> {
     console.log(res.data)
     console.log('[AUTH] =========================')
 
-    // CORRECT: Handle the nested ApiResponse<AuthResponse> structure
     const apiResponse = res.data
     
     if (!apiResponse.success) {
       throw new Error(apiResponse.error?.message || 'Login failed: API returned unsuccessful')
     }
 
-    // Now extract from apiResponse.data
     const authData = apiResponse.data
     const { access_token, refresh_token, user } = authData
 

@@ -30,29 +30,25 @@ export default function HistoryPage() {
     useEffect(() => {
         const fetchHistory = async () => {
             try {
-                // Get user info to check if superadmin
                 const userData = await me();
                 const userRole = userData.role as string;
                 
-                // Check if user is superadmin or doesn't have a client_id
                 if (userRole === 'superadmin' || !userData.client_id) {
                     setIsSuperadmin(true);
                     setLoading(false);
-                    return; // Prevent further API calls for superadmins
+                    return;
                 }
 
                 const response = await billingApi.getBillingHistory();
                 if (response.success) {
                     setPeriods(response.data.periods);
                 } else {
-                    // Don't show error for expected failures (superadmin, no client, etc.)
                     if (response.error?.message && !response.error.message.includes('client') && !response.error.message.includes('Client ID')) {
                         setError(response.error?.message || 'Failed to fetch billing history');
                     }
                 }
             } catch (error: any) {
                 console.error('Failed to fetch history:', error);
-                // Only set error if it's not related to client_id
                 if (!error.message?.includes('client') && !error.message?.includes('Client ID')) {
                     setError(error.response?.data?.error?.message || error.message || 'An unexpected error occurred');
                 }
@@ -73,7 +69,6 @@ export default function HistoryPage() {
         );
     }
 
-    // Show message for superadmin users
     if (isSuperadmin) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
@@ -137,10 +132,12 @@ export default function HistoryPage() {
                                             {format(new Date(period.period_start), 'MMM d')} - {format(new Date(period.period_end), 'MMM d, yyyy')}
                                         </TableCell>
                                         <TableCell>
-                                            <span className="text-xs font-semibold text-slate-600">{period.total_calls} Calls</span>
+                                            <span className="text-xs font-semibold text-slate-600">
+                                                {period.total_calls ?? (period.voice_calls ?? 0) + (period.sms_messages ?? 0)} Calls
+                                            </span>
                                         </TableCell>
                                         <TableCell>
-                                            <span className="text-sm font-bold text-slate-900">${period.total_cost.toFixed(2)}</span>
+                                            <span className="text-sm font-bold text-slate-900">${(period.total_cost ?? period.total).toFixed(2)}</span>
                                         </TableCell>
                                         <TableCell>
                                             <Badge variant="outline" className={clsx(
@@ -151,8 +148,8 @@ export default function HistoryPage() {
                                             </Badge>
                                         </TableCell>
                                         <TableCell className="text-right pr-6">
-                                            {period.invoice_url ? (
-                                                <Button variant="ghost" size="sm" className="h-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 font-bold text-xs" onClick={() => window.open(period.invoice_url!, '_blank')}>
+                                            {(period.invoice_url ?? period.stripe_invoice_url) ? (
+                                                <Button variant="ghost" size="sm" className="h-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 font-bold text-xs" onClick={() => window.open((period.invoice_url ?? period.stripe_invoice_url)!, '_blank')}>
                                                     <Download className="h-3.5 w-3.5 mr-1.5" /> PDF
                                                 </Button>
                                             ) : (

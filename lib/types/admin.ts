@@ -1,6 +1,5 @@
 import { ApiResponse } from './api';
 
-// Platform Overview
 export interface PlatformOverviewResponse {
     total_clients: number;
     active_clients: number;
@@ -12,7 +11,6 @@ export interface PlatformOverviewResponse {
 
 export type PlatformOverviewApiResponse = ApiResponse<PlatformOverviewResponse>;
 
-// Client Types
 export interface ClientMapping {
     type: 'vapi_squad' | 'vapi_assistant' | 'twilio_number';
     value: string;
@@ -80,7 +78,6 @@ export interface UpdateMappingsRequest {
 export type ClientApiResponse = ApiResponse<Client>;
 export type ClientListApiResponse = ApiResponse<{ clients: Client[] }>;
 
-// User Management Types
 export interface InviteUserRequest {
     email: string;
     client_id?: string;
@@ -105,7 +102,6 @@ export interface InvitationResponse {
 export type InvitationApiResponse = ApiResponse<InvitationResponse>;
 export type UserListApiResponse = ApiResponse<{ users: import('./api').User[] }>;
 
-// Credit Management Types
 export interface CreditAdjustmentRequest {
     amount: number;
     client_id?: string;

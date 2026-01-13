@@ -23,17 +23,14 @@ export const billingApi = {
             console.log('[BILLING] getCurrentBilling response:', response.data);
             console.log('[BILLING] Response status:', response.status);
             
-            // Check if response is already ApiResponse structure
             if (response.data && typeof response.data === 'object') {
                 if ('success' in response.data) {
-                    // It's already ApiResponse structure
                     const apiResponse = response.data as ApiResponse<BillingCurrentResponse>;
                     if (apiResponse.success && apiResponse.data) {
                         return { success: true, data: apiResponse.data };
                     }
                     return { success: false, data: {} as any, error: apiResponse.error || { code: 'FETCH_BILLING_FAILED', message: 'Invalid response' } };
                 } else if ('client_name' in response.data || 'wallet_balance' in response.data) {
-                    // Direct data response
                     return { success: true, data: response.data as BillingCurrentResponse };
                 }
             }
@@ -43,7 +40,6 @@ export const billingApi = {
             console.error('[BILLING] Error response data:', error.response?.data);
             console.error('[BILLING] Error status:', error.response?.status);
             
-            // Extract error message from various possible locations
             let errorMessage = 'Failed to fetch billing data';
             if (error.response?.data) {
                 if (error.response.data.error?.message) {
@@ -78,7 +74,6 @@ export const billingApi = {
                     }
                     return { success: false, data: { periods: [] }, error: apiResponse.error || { code: 'FETCH_HISTORY_FAILED', message: 'Invalid response' } };
                 } else if ('periods' in response.data || Array.isArray(response.data)) {
-                    // Direct data response
                     const periods = Array.isArray(response.data) ? response.data : response.data.periods || [];
                     return { success: true, data: { periods } };
                 }
@@ -106,7 +101,6 @@ export const billingApi = {
                     }
                     return { success: false, data: { transactions: [], current_balance: 0, total: 0 }, error: apiResponse.error || { code: 'FETCH_TRANSACTIONS_FAILED', message: 'Invalid response' } };
                 } else if ('transactions' in response.data) {
-                    // Direct data response
                     return { success: true, data: response.data as TransactionsData };
                 }
             }
@@ -131,7 +125,6 @@ export const billingApi = {
                     }
                     return { success: false, data: {} as any, error: apiResponse.error || { code: 'TOPUP_FAILED', message: 'Invalid response' } };
                 } else if ('checkout_url' in response.data) {
-                    // Direct data response
                     return { success: true, data: response.data as TopupResponse };
                 }
             }
@@ -156,7 +149,6 @@ export const billingApi = {
                     }
                     return { success: false, data: {} as any, error: apiResponse.error || { code: 'PORTAL_FAILED', message: 'Invalid response' } };
                 } else if ('url' in response.data) {
-                    // Direct data response
                     return { success: true, data: response.data as StripePortalResponse };
                 }
             }
@@ -166,7 +158,6 @@ export const billingApi = {
             console.error('[BILLING] Error response data:', error.response?.data);
             console.error('[BILLING] Error status:', error.response?.status);
             
-            // Extract error message from various possible locations
             let errorMessage = 'Failed to get portal URL';
             if (error.response?.data) {
                 if (error.response.data.error?.message) {
@@ -201,7 +192,6 @@ export const billingApi = {
                     }
                     return { success: false, data: {} as any, error: apiResponse.error || { code: 'FETCH_SETTINGS_FAILED', message: 'Invalid response' } };
                 } else if ('auto_recharge_amount' in response.data) {
-                    // Direct data response
                     return { success: true, data: response.data as ClientSettingsResponse };
                 }
             }
@@ -211,7 +201,6 @@ export const billingApi = {
             console.error('[BILLING] Error response data:', error.response?.data);
             console.error('[BILLING] Error status:', error.response?.status);
             
-            // Extract error message from various possible locations
             let errorMessage = 'Failed to fetch settings';
             if (error.response?.data) {
                 if (error.response.data.error?.message) {
@@ -246,7 +235,6 @@ export const billingApi = {
                     }
                     return { success: false, data: {} as any, error: apiResponse.error || { code: 'UPDATE_SETTINGS_FAILED', message: 'Invalid response' } };
                 } else if ('auto_recharge_amount' in response.data) {
-                    // Direct data response
                     return { success: true, data: response.data as ClientSettingsResponse };
                 }
             }

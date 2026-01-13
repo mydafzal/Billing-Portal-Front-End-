@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const API_BASE_URL = 'https://billing.devixor.com/api';
+const API_BASE_URL = process.env.API_BASE_URL!;
 
 export async function GET(
   request: NextRequest,
@@ -47,15 +47,12 @@ async function handleRequest(
     const pathSegments = Array.isArray(resolvedParams.path) ? resolvedParams.path : [];
     const apiPath = pathSegments.length > 0 ? `/${pathSegments.join('/')}` : '';
     
-    // Get query parameters
     const searchParams = request.nextUrl.searchParams;
     const queryString = searchParams.toString();
     const url = `${API_BASE_URL}${apiPath}${queryString ? `?${queryString}` : ''}`;
 
-    // Get authorization header from request
     const authHeader = request.headers.get('authorization');
     
-    // Prepare headers
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
     };
@@ -64,21 +61,18 @@ async function handleRequest(
       headers['Authorization'] = authHeader;
     }
 
-    // Get request body for POST, PUT, PATCH
     let body: string | undefined;
     if (['POST', 'PUT', 'PATCH'].includes(method)) {
       try {
         const requestBody = await request.json();
         body = JSON.stringify(requestBody);
       } catch (e) {
-        // No body or invalid JSON
         body = undefined;
       }
     }
 
     console.log(`[PROXY] ${method} ${url}`, { hasAuth: !!authHeader, hasBody: !!body });
 
-    // Make request to backend
     const response = await fetch(url, {
       method,
       headers,
@@ -88,7 +82,6 @@ async function handleRequest(
     let data;
     const contentType = response.headers.get('content-type');
     
-    // Get response text first to handle both JSON and non-JSON
     const responseText = await response.text();
     
     if (contentType && contentType.includes('application/json')) {
@@ -106,7 +99,6 @@ async function handleRequest(
 
     console.log(`[PROXY] Response status: ${response.status}`, JSON.stringify(data, null, 2));
     
-    // Log error details for debugging
     if (response.status >= 400) {
       console.error(`[PROXY] Error response from backend:`, {
         status: response.status,
@@ -125,7 +117,7 @@ async function handleRequest(
         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type, Authorization',
       },
-    });
+    })
   } catch (error: any) {
     console.error('[PROXY] Error:', error);
     return NextResponse.json(
@@ -141,7 +133,6 @@ async function handleRequest(
   }
 }
 
-// Handle OPTIONS for CORS preflight
 export async function OPTIONS() {
   return new NextResponse(null, {
     status: 200,

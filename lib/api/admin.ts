@@ -20,7 +20,6 @@ import {
 } from '@/lib/types/admin';
 
 export const adminApi = {
-    // Platform Overview
     async getOverview(): Promise<PlatformOverviewApiResponse> {
         try {
             const response = await api.get('/admin/overview');
@@ -34,7 +33,6 @@ export const adminApi = {
                     }
                     return { success: false, data: {} as any, error: apiResponse.error || { code: 'FETCH_OVERVIEW_FAILED', message: 'Invalid response' } };
                 } else if ('total_clients' in response.data) {
-                    // Direct data response
                     return { success: true, data: response.data as PlatformOverviewResponse };
                 }
             }
@@ -46,7 +44,6 @@ export const adminApi = {
         }
     },
 
-    // Clients
     async getClients(activeOnly: boolean = true, limit: number = 20, offset: number = 0): Promise<ClientListApiResponse> {
         try {
             const params = new URLSearchParams();
@@ -78,12 +75,10 @@ export const adminApi = {
                     });
                     
                     if (apiResponse.success && apiResponse.data) {
-                        // Handle case where data is directly an array
                         if (Array.isArray(apiResponse.data)) {
                             console.log('[ADMIN] Data is array, wrapping in clients object');
                             return { success: true, data: { clients: apiResponse.data } };
                         }
-                        // Handle case where data is an object with clients property
                         if (typeof apiResponse.data === 'object' && 'clients' in apiResponse.data) {
                             return { success: true, data: apiResponse.data as { clients: Client[] } };
                         }
@@ -94,11 +89,9 @@ export const adminApi = {
                         error: apiResponse.error || { code: 'FETCH_CLIENTS_FAILED', message: 'Invalid response' } 
                     };
                 } else if ('clients' in response.data) {
-                    // Direct data response with clients key
                     console.log('[ADMIN] Direct clients structure detected:', response.data.clients);
                     return { success: true, data: { clients: response.data.clients || [] } };
                 } else if (Array.isArray(response.data)) {
-                    // Direct array response
                     console.log('[ADMIN] Direct array structure detected:', response.data.length);
                     return { success: true, data: { clients: response.data } };
                 }
@@ -111,7 +104,6 @@ export const adminApi = {
             console.error('[ADMIN] Error response:', error.response?.data);
             console.error('[ADMIN] Error status:', error.response?.status);
             
-            // Extract error message from various possible locations
             let errorMessage = 'Failed to fetch clients';
             if (error.response?.data) {
                 if (error.response.data.error?.message) {
@@ -146,7 +138,6 @@ export const adminApi = {
                     }
                     return { success: false, data: {} as any, error: apiResponse.error || { code: 'CREATE_CLIENT_FAILED', message: 'Invalid response' } };
                 } else if ('id' in response.data) {
-                    // Direct data response
                     return { success: true, data: response.data as Client };
                 }
             }
@@ -157,7 +148,6 @@ export const adminApi = {
             console.error('[ADMIN] Error status:', error.response?.status);
             console.error('[ADMIN] Error config:', error.config);
             
-            // Extract error message from various possible locations
             let errorMessage = 'Failed to create client';
             if (error.response?.data) {
                 // Check for validation errors (FastAPI format)
@@ -172,7 +162,6 @@ export const adminApi = {
                 } else if (error.response.data.error?.message) {
                     errorMessage = error.response.data.error.message;
                 } else if (error.response.data.detail) {
-                    // Handle case where detail is a string or object
                     if (typeof error.response.data.detail === 'string') {
                         errorMessage = error.response.data.detail;
                     } else {
@@ -204,7 +193,6 @@ export const adminApi = {
                     }
                     return { success: false, data: {} as any, error: apiResponse.error || { code: 'FETCH_CLIENT_FAILED', message: 'Invalid response' } };
                 } else if ('id' in response.data) {
-                    // Direct data response
                     return { success: true, data: response.data as Client };
                 }
             }
@@ -229,7 +217,6 @@ export const adminApi = {
                     }
                     return { success: false, data: {} as any, error: apiResponse.error || { code: 'UPDATE_CLIENT_FAILED', message: 'Invalid response' } };
                 } else if ('id' in response.data) {
-                    // Direct data response
                     return { success: true, data: response.data as Client };
                 }
             }
@@ -254,7 +241,6 @@ export const adminApi = {
                     }
                     return { success: false, error: apiResponse.error || { code: 'DELETE_CLIENT_FAILED', message: 'Invalid response' } };
                 } else {
-                    // Direct data response
             return { success: true, data: response.data };
                 }
             }
@@ -279,7 +265,6 @@ export const adminApi = {
                     }
                     return { success: false, data: {} as any, error: apiResponse.error || { code: 'UPDATE_MAPPINGS_FAILED', message: 'Invalid response' } };
                 } else if ('id' in response.data) {
-                    // Direct data response
                     return { success: true, data: response.data as Client };
                 }
             }
@@ -304,7 +289,6 @@ export const adminApi = {
                     }
                     return { success: false, error: apiResponse.error || { code: 'PAUSE_CLIENT_FAILED', message: 'Invalid response' } };
                 } else {
-                    // Direct data response
             return { success: true, data: response.data };
                 }
             }
@@ -329,7 +313,6 @@ export const adminApi = {
                     }
                     return { success: false, error: apiResponse.error || { code: 'RESUME_CLIENT_FAILED', message: 'Invalid response' } };
                 } else {
-                    // Direct data response
             return { success: true, data: response.data };
                 }
             }
@@ -341,7 +324,6 @@ export const adminApi = {
         }
     },
 
-    // Users
     async getUsers(clientId?: string, limit: number = 20, offset: number = 0): Promise<UserListApiResponse> {
         try {
             const params: any = { limit, offset };
@@ -367,23 +349,19 @@ export const adminApi = {
                     });
                     
                     if (apiResponse.success && apiResponse.data) {
-                        // Handle case where data is directly an array
                         if (Array.isArray(apiResponse.data)) {
                             console.log('[ADMIN] Data is array, wrapping in users object');
                             return { success: true, data: { users: apiResponse.data } };
                         }
-                        // Handle case where data is an object with users property
                         if (typeof apiResponse.data === 'object' && 'users' in apiResponse.data) {
                             return { success: true, data: apiResponse.data as { users: import('@/lib/types/api').User[] } };
                         }
                     }
                     return { success: false, data: { users: [] }, error: apiResponse.error || { code: 'FETCH_USERS_FAILED', message: 'Invalid response' } };
                 } else if ('users' in response.data) {
-                    // Direct data response with users key
                     console.log('[ADMIN] Direct users structure detected:', response.data.users);
                     return { success: true, data: { users: response.data.users || [] } };
                 } else if (Array.isArray(response.data)) {
-                    // Direct array response
                     console.log('[ADMIN] Direct array structure detected:', response.data.length);
                     return { success: true, data: { users: response.data } };
                 }
@@ -417,13 +395,11 @@ export const adminApi = {
 
     async inviteUser(data: InviteUserRequest): Promise<InvitationApiResponse> {
         try {
-            // Clean up the request data - remove empty client_id if it's an empty string
             const requestData: any = {
                 email: data.email,
                 role: data.role
             };
             
-            // Only include client_id if it's provided and not empty
             if (data.client_id && data.client_id.trim() !== '') {
                 requestData.client_id = data.client_id;
             }
@@ -441,7 +417,6 @@ export const adminApi = {
                     }
                     return { success: false, data: {} as any, error: apiResponse.error || { code: 'INVITE_USER_FAILED', message: 'Invalid response' } };
                 } else if ('id' in response.data || 'email' in response.data) {
-                    // Direct data response
                     return { success: true, data: response.data as InvitationResponse };
                 }
             }
@@ -452,10 +427,8 @@ export const adminApi = {
             console.error('[ADMIN] Error status:', error.response?.status);
             console.error('[ADMIN] Error config:', error.config);
             
-            // Extract error message from various possible locations
             let errorMessage = 'Failed to invite user';
             if (error.response?.data) {
-                // Check for ApiResponse structure with error object
                 if (error.response.data.error && typeof error.response.data.error === 'object') {
                     if (error.response.data.error.message) {
                         errorMessage = error.response.data.error.message;
@@ -471,7 +444,6 @@ export const adminApi = {
                     }).join('\n');
                     errorMessage = `Validation errors:\n${validationErrors}`;
                 } 
-                // Check for detail field (FastAPI error format)
                 else if (error.response.data.detail) {
                     if (typeof error.response.data.detail === 'string') {
                         errorMessage = error.response.data.detail;
@@ -481,7 +453,6 @@ export const adminApi = {
                         errorMessage = JSON.stringify(error.response.data.detail);
                     }
                 } 
-                // Check for direct message
                 else if (typeof error.response.data === 'string') {
                     errorMessage = error.response.data;
                 } else if (error.response.data.message) {
@@ -511,7 +482,6 @@ export const adminApi = {
                     }
                     return { success: false, error: apiResponse.error || { code: 'UPDATE_USER_FAILED', message: 'Invalid response' } };
                 } else if ('id' in response.data) {
-                    // Direct data response
                     console.log('[ADMIN] updateUser success (direct), returned data:', JSON.stringify(response.data, null, 2));
                     return { success: true, data: response.data };
                 }
@@ -526,7 +496,6 @@ export const adminApi = {
         }
     },
 
-    // Credits
     async giveCredits(data: CreditAdjustmentRequest): Promise<CreditAdjustmentApiResponse> {
         try {
             const response = await api.post('/admin/credits/give', data);
@@ -540,7 +509,6 @@ export const adminApi = {
                     }
                     return { success: false, data: {} as any, error: apiResponse.error || { code: 'GIVE_CREDITS_FAILED', message: 'Invalid response' } };
                 } else if ('operation' in response.data) {
-                    // Direct data response
                     return { success: true, data: response.data as CreditAdjustmentResponse };
                 }
             }
@@ -552,12 +520,10 @@ export const adminApi = {
         }
     },
 
-    // User-Client Association (if separate endpoint exists)
     async assignUserToClient(userId: string, clientId: string | null): Promise<any> {
         try {
             console.log('[ADMIN] assignUserToClient request:', { userId, clientId });
             
-            // Try different possible endpoints
             const endpoints = [
                 `/admin/users/${userId}/client`,
                 `/admin/users/${userId}/assign-client`,
@@ -571,15 +537,12 @@ export const adminApi = {
                     return { success: true, data: response.data };
                 } catch (error: any) {
                     if (error.response?.status !== 404) {
-                        // If it's not a 404, the endpoint exists but failed
                         throw error;
                     }
-                    // 404 means endpoint doesn't exist, try next one
                     continue;
                 }
             }
             
-            // If all endpoints failed with 404, the feature might not be supported
             return { 
                 success: false, 
                 error: { 
@@ -607,7 +570,6 @@ export const adminApi = {
                     }
                     return { success: false, data: {} as any, error: apiResponse.error || { code: 'REVOKE_CREDITS_FAILED', message: 'Invalid response' } };
                 } else if ('operation' in response.data) {
-                    // Direct data response
                     return { success: true, data: response.data as CreditAdjustmentResponse };
                 }
             }

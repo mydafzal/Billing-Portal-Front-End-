@@ -44,8 +44,13 @@ export interface BillingHistoryItem {
   voice_cost: number;
   sms_cost: number;
   total: number;
+  total_cost?: number;
+  total_calls?: number;
+  voice_calls?: number;
+  sms_messages?: number;
   status: 'current' | 'finalized' | 'paid';
   stripe_invoice_url: string | null;
+  invoice_url?: string | null;
   created_at: string;
   subtotal?: number;
   markup_percent?: number;
