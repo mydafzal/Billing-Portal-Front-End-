@@ -20,6 +20,9 @@ export default function SettingsPage() {
   const [user, setUser] = useState<UserType | null>(null);
   const [settings, setSettings] = useState<ClientSettingsResponse | null>(null);
   const [autoRechargeAmount, setAutoRechargeAmount] = useState<string>('');
+  const [threshold, setThreshold] = useState<string>('');
+  const [autoRechargeEnabled, setAutoRechargeEnabled] = useState<boolean>(false);
+  const [hasAutoRechargePermission, setHasAutoRechargePermission] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,6 +53,12 @@ export default function SettingsPage() {
         if (settingsData.success) {
           setSettings(settingsData.data);
           setAutoRechargeAmount(settingsData.data.auto_recharge_amount.toString());
+          setThreshold(settingsData.data.low_balance_threshold.toString());
+          // allow_auto_recharge is the permission flag AND the current state
+          // Store it for both permission and state
+          const autoRechargeState = settingsData.data.allow_auto_recharge || false;
+          setHasAutoRechargePermission(autoRechargeState);
+          setAutoRechargeEnabled(autoRechargeState);
         } else {
           // Don't show error for expected failures (superadmin, no client, etc.)
           if (settingsData.error?.message && !settingsData.error.message.includes('client') && !settingsData.error.message.includes('Client ID')) {
@@ -142,7 +151,57 @@ export default function SettingsPage() {
     } finally {
       setIsSaving(false);
     }
-  }
+  };
+
+  const handleSaveThreshold = async () => {
+    if (role === 'viewer' || !settings?.allow_admin_threshold_edit) return;
+    setIsSaving(true);
+    try {
+      const val = parseFloat(threshold);
+      if (isNaN(val) || val < 0) {
+        toast.error('Invalid threshold', { description: 'Threshold must be a positive number' });
+        return;
+      }
+      const response = await billingApi.updateThreshold(val);
+      if (response.success && response.data) {
+        setSettings(response.data);
+        setThreshold(response.data.low_balance_threshold.toString());
+        toast.success('Settings saved', { description: 'Threshold updated' });
+      }
+    } catch (error: any) {
+      toast.error('Save failed', { description: error?.response?.data?.error?.message || 'Failed to save settings' });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleToggleAutoRecharge = async (enabled: boolean) => {
+    if (role === 'viewer') return;
+    setIsSaving(true);
+    const previousState = autoRechargeEnabled;
+    // Optimistically update UI - this is the source of truth
+    setAutoRechargeEnabled(enabled);
+    try {
+      const response = await billingApi.updateAutoRechargeEnabled(enabled);
+      if (response.success && response.data) {
+        // Update settings but KEEP our enabled state - don't let server override it
+        setSettings(response.data);
+        setAutoRechargeEnabled(enabled); // Force our value
+        setHasAutoRechargePermission(enabled);
+        toast.success('Settings saved', { description: 'Auto-recharge setting updated' });
+      } else {
+        const errorMsg = response.error?.message || 'Failed to update auto-recharge setting';
+        toast.error('Save failed', { description: errorMsg });
+        setAutoRechargeEnabled(previousState);
+      }
+    } catch (error: any) {
+      const errorMsg = error?.response?.data?.error?.message || error?.message || 'Failed to save settings';
+      toast.error('Save failed', { description: errorMsg });
+      setAutoRechargeEnabled(previousState);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -224,40 +283,94 @@ export default function SettingsPage() {
               </Button>
             </div>
 
-            {settings?.allow_admin_auto_recharge_edit && (
+            {(settings?.allow_admin_auto_recharge_edit || settings?.allow_admin_threshold_edit || hasAutoRechargePermission) && (
               <div className="pt-6 border-t border-slate-100 space-y-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Settings className="h-5 w-5 text-emerald-600" />
-                    <h3 className="text-sm font-bold text-slate-900">Auto-Recharge</h3>
+                {/* Show toggle for admin and superadmin - always visible for these roles */}
+                {(role === 'admin' || role === 'superadmin') && (
+                  <div className="flex items-center justify-between p-4 bg-slate-50/50 rounded-lg border border-slate-100">
+                    <div className="flex items-center gap-3">
+                      <Settings className="h-5 w-5 text-emerald-600" />
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-900">Auto-Recharge</h3>
+                        <p className="text-xs text-slate-500">Enable or disable automatic balance refill</p>
+                      </div>
+                    </div>
+                    <Switch
+                      checked={autoRechargeEnabled}
+                      onCheckedChange={handleToggleAutoRecharge}
+                      disabled={isSaving}
+                      className="data-[state=checked]:bg-emerald-600"
+                    />
                   </div>
-                </div>
+                )}
 
-                <div className="flex flex-col md:flex-row items-end gap-4 bg-slate-50/50 p-6 rounded-lg border border-slate-100">
-                  <div className="space-y-2 flex-1 w-full">
-                    <Label htmlFor="auto-recharge" className="text-xs font-bold text-slate-500 ml-1">Recharge Amount (USD)</Label>
-                    <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-600 font-bold">$</span>
-                      <Input
-                        id="auto-recharge"
-                        type="number"
-                        value={autoRechargeAmount}
-                        onChange={(e) => setAutoRechargeAmount(e.target.value)}
-                        className="h-10 pl-8 rounded-lg border-slate-200 bg-white font-bold text-sm focus:border-emerald-500"
-                      />
+                {settings?.allow_admin_auto_recharge_edit && (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <Settings className="h-5 w-5 text-emerald-600" />
+                      <h3 className="text-sm font-bold text-slate-900">Recharge Amount</h3>
+                    </div>
+
+                    <div className="flex flex-col md:flex-row items-end gap-4 bg-slate-50/50 p-6 rounded-lg border border-slate-100">
+                      <div className="space-y-2 flex-1 w-full">
+                        <Label htmlFor="auto-recharge" className="text-xs font-bold text-slate-500 ml-1">Recharge Amount (USD)</Label>
+                        <div className="relative">
+                          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-600 font-bold">$</span>
+                          <Input
+                            id="auto-recharge"
+                            type="number"
+                            value={autoRechargeAmount}
+                            onChange={(e) => setAutoRechargeAmount(e.target.value)}
+                            className="h-10 pl-8 rounded-lg border-slate-200 bg-white font-bold text-sm focus:border-emerald-500"
+                          />
+                        </div>
+                      </div>
+                      <Button
+                        onClick={handleSaveAutoRecharge}
+                        disabled={isSaving}
+                        className="h-10 px-6 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm w-full md:w-auto"
+                      >
+                        {isSaving ? 'Saving...' : <><Save className="mr-2 h-4 w-4" /> Save Changes</>}
+                      </Button>
                     </div>
                   </div>
-                  <Button
-                    onClick={handleSaveAutoRecharge}
-                    disabled={isSaving}
-                    className="h-10 px-6 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm w-full md:w-auto"
-                  >
-                    {isSaving ? 'Saving...' : <><Save className="mr-2 h-4 w-4" /> Save Changes</>}
-                  </Button>
-                </div>
-                <p className="text-[10px] font-semibold text-slate-400 ml-1">
-                  System will automatically refill when balance falls below <span className="text-emerald-600 font-bold">${settings.low_balance_threshold}</span>
-                </p>
+                )}
+
+                {settings?.allow_admin_threshold_edit && (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <Settings className="h-5 w-5 text-emerald-600" />
+                      <h3 className="text-sm font-bold text-slate-900">Low Balance Threshold</h3>
+                    </div>
+
+                    <div className="flex flex-col md:flex-row items-end gap-4 bg-slate-50/50 p-6 rounded-lg border border-slate-100">
+                      <div className="space-y-2 flex-1 w-full">
+                        <Label htmlFor="threshold" className="text-xs font-bold text-slate-500 ml-1">Threshold Amount (USD)</Label>
+                        <div className="relative">
+                          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-600 font-bold">$</span>
+                          <Input
+                            id="threshold"
+                            type="number"
+                            step="0.01"
+                            value={threshold}
+                            onChange={(e) => setThreshold(e.target.value)}
+                            className="h-10 pl-8 rounded-lg border-slate-200 bg-white font-bold text-sm focus:border-emerald-500"
+                          />
+                        </div>
+                      </div>
+                      <Button
+                        onClick={handleSaveThreshold}
+                        disabled={isSaving}
+                        className="h-10 px-6 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm w-full md:w-auto"
+                      >
+                        {isSaving ? 'Saving...' : <><Save className="mr-2 h-4 w-4" /> Save Changes</>}
+                      </Button>
+                    </div>
+                    <p className="text-[10px] font-semibold text-slate-400 ml-1">
+                      Auto-recharge will trigger when balance falls below this threshold
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </CardContent>

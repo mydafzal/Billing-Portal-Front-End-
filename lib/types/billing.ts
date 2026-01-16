@@ -94,6 +94,8 @@ export interface ClientSettingsResponse {
   auto_recharge_amount: number;
   low_balance_threshold: number;
   allow_admin_auto_recharge_edit: boolean;
+  allow_admin_threshold_edit: boolean;
+  allow_auto_recharge: boolean;
 }
 
 export type ClientSettingsApiResponse = ApiResponse<ClientSettingsResponse>;

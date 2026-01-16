@@ -36,24 +36,23 @@ export default function TransactionsPage() {
                 const userData = await me();
                 const userRole = userData.role as string;
                 
-                // Check if user is superadmin or doesn't have a client_id
+                // Set superadmin flag but still try to fetch data
                 if (userRole === 'superadmin' || !userData.client_id) {
                     setIsSuperadmin(true);
-                    setLoading(false);
-                    return; // Prevent further API calls for superadmins
                 }
 
+                // Try to fetch transactions (API may support superadmin without client_id)
                 await loadTransactions(currentPage);
             } catch (error: any) {
-                // Ignore 400/404 for superadmins/new users
+                // Silently handle 400/404 errors (API may not support superadmin without client_id)
                 if (error.response?.status === 400 || error.response?.status === 404) {
                     setTransactions([]);
-                    return;
-                }
-                console.error('Failed to fetch transactions:', error);
-                // Only show error if it's not related to client_id
-                if (!error.message?.includes('client') && !error.message?.includes('Client ID')) {
-                    toast.error(error.response?.data?.error?.message || error.message || 'An unexpected error occurred');
+                } else {
+                    console.error('Failed to fetch transactions:', error);
+                    // Only show error if it's not related to client_id
+                    if (!error.message?.includes('client') && !error.message?.includes('Client ID')) {
+                        toast.error(error.response?.data?.error?.message || error.message || 'An unexpected error occurred');
+                    }
                 }
             } finally {
                 setLoading(false);
@@ -88,9 +87,8 @@ export default function TransactionsPage() {
     };
 
     useEffect(() => {
-        if (!isSuperadmin) {
-            loadTransactions(currentPage);
-        }
+        // Load transactions for all users including superadmin
+        loadTransactions(currentPage);
     }, [currentPage]);
 
     if (loading) {
@@ -102,23 +100,6 @@ export default function TransactionsPage() {
         );
     }
 
-    // Show message for superadmin users
-    if (isSuperadmin) {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
-                <div className="text-center space-y-4 max-w-md">
-                    <h2 className="text-xl font-bold text-slate-900">Transactions Not Available</h2>
-                    <p className="text-slate-500">As a superadmin, transaction history is not available at the organization level. Please use the Admin section to view platform-wide transactions and manage clients.</p>
-                    <Button 
-                        onClick={() => router.push('/admin')}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                    >
-                        Go to Admin Panel
-                    </Button>
-                </div>
-            </div>
-        );
-    }
 
     const getTransactionIcon = (type: string) => {
         const t = type.toLowerCase();
@@ -153,10 +134,10 @@ export default function TransactionsPage() {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-                        Payments
+                        {isSuperadmin ? 'Platform Transactions' : 'Payments'}
                     </h1>
                     <p className="text-slate-500 text-sm font-medium mt-1">
-                        History of credits, top-ups, and service usage
+                        {isSuperadmin ? 'View all platform-wide transaction history' : 'History of credits, top-ups, and service usage'}
                     </p>
                 </div>
                 <div className="bg-white px-4 py-2 rounded-lg border border-slate-200 shadow-sm flex items-center gap-2">

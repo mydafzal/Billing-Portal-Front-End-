@@ -71,10 +71,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
         <nav className="flex-1 px-3 space-y-1">
           {navItem('/dashboard', 'Dashboard', LayoutDashboard)}
-          {navItem('/dashboard/usage', 'Usage', Activity)}
           {navItem('/dashboard/billing', 'Billing', CreditCard)}
           {!isViewer && navItem('/dashboard/transactions', 'Payments', Wallet)}
-          {isAdmin && navItem('/dashboard/team', 'Team', Users)}
+          {isAdmin && !isSuperadmin && navItem('/dashboard/team', 'Team', Users)}
           {navItem('/settings', 'Settings', Settings)}
 
           {/* Admin Section */}
@@ -82,7 +81,6 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             <div className="pt-6 mb-4">
               <p className="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Admin Panel</p>
               <div className="space-y-1">
-                {navItem('/admin', 'Admin Home', ShieldCheck)}
                 {navItem('/admin/integrations', 'Service Setup', Globe)}
                 {navItem('/admin/clients', 'Clients', Building2)}
                 {navItem('/admin/users', 'Users', Users)}

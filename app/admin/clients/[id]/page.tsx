@@ -32,6 +32,7 @@ import { adminApi } from '@/lib/api/admin';
 import { Client, ClientMapping } from '@/lib/types/admin';
 import { getUserRole } from '@/lib/auth/role';
 import { clsx } from 'clsx';
+import { billingApi } from '@/lib/api/billing';
 
 export default function ClientDetailsPage({ params }: { params: Promise<{ id: string }> }) {
     const role = getUserRole();
@@ -71,20 +72,61 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
     const handleUpdate = async () => {
         if (!client) return;
         setSaving(true);
+        // Store the current auto_recharge_enabled state to preserve it
+        const currentAutoRechargeEnabled = client.auto_recharge_enabled;
         try {
-            await adminApi.updateClient(client.id, {
+            const result = await adminApi.updateClient(client.id, {
                 markup_percent: client.markup_percent,
                 low_balance_threshold: client.low_balance_threshold,
                 auto_recharge_amount: client.auto_recharge_amount,
-                auto_recharge_enabled: client.auto_recharge_enabled,
+                auto_recharge_enabled: currentAutoRechargeEnabled,
                 allow_admin_auto_recharge_edit: client.allow_admin_auto_recharge_edit,
                 per_call_surcharge: client.per_call_surcharge,
                 per_sms_surcharge: client.per_sms_surcharge
             });
-            toast.success('Settings updated');
-            fetchClient(client.id);
+            if (result.success && result.data) {
+                // Update with the response data but preserve the auto_recharge_enabled state we just saved
+                setClient({ 
+                    ...result.data, 
+                    auto_recharge_enabled: currentAutoRechargeEnabled // Preserve the state we just saved
+                });
+                toast.success('Settings updated');
+            } else {
+                const errorMsg = result.error?.message || 'Failed to update settings';
+                toast.error('Update failed', { description: errorMsg });
+            }
         } catch (error: any) {
             toast.error('Update failed', { description: error?.message });
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleAutoRechargeToggle = async (enabled: boolean) => {
+        if (!client) return;
+        setSaving(true);
+        const previousState = client.auto_recharge_enabled;
+        // Optimistically update UI - this is the source of truth until we confirm
+        setClient({ ...client, auto_recharge_enabled: enabled });
+        try {
+            const result = await adminApi.updateClient(client.id, {
+                auto_recharge_enabled: enabled
+            });
+            if (result.success && result.data) {
+                // Merge server response but KEEP our enabled state - don't let server override it
+                setClient({ 
+                    ...result.data, 
+                    auto_recharge_enabled: enabled // Force our value, not server's
+                });
+                toast.success('Auto-recharge setting updated');
+            } else {
+                const errorMsg = result.error?.message || 'Failed to update auto-recharge setting';
+                toast.error('Update failed', { description: errorMsg });
+                setClient({ ...client, auto_recharge_enabled: previousState });
+            }
+        } catch (error: any) {
+            toast.error('Update failed', { description: error?.message || 'An unexpected error occurred' });
+            setClient({ ...client, auto_recharge_enabled: previousState });
         } finally {
             setSaving(false);
         }
@@ -247,13 +289,31 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
                                 <span className="text-[10px] font-semibold text-slate-400 mt-1 uppercase">Available Credits</span>
                             </div>
                             <div className="pt-4 border-t border-white/10 grid grid-cols-2 gap-4">
-                                <div>
+                                <div className="space-y-1.5">
                                     <p className="text-[9px] font-bold uppercase text-slate-500 tracking-wider">Markup</p>
-                                    <p className="text-sm font-bold">{client.markup_percent}%</p>
+                                    <div className="relative">
+                                        <Input
+                                            type="number"
+                                            step="0.1"
+                                            className="h-8 pl-8 pr-2 bg-white/10 border-white/20 text-white font-bold text-sm rounded-lg focus:bg-white/20 focus:border-white/40"
+                                            value={client.markup_percent}
+                                            onChange={(e) => setClient(client ? { ...client, markup_percent: Number(e.target.value) } : null)}
+                                        />
+                                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-white/60 font-bold text-xs">%</span>
+                                    </div>
                                 </div>
-                                <div>
+                                <div className="space-y-1.5">
                                     <p className="text-[9px] font-bold uppercase text-slate-500 tracking-wider">Threshold</p>
-                                    <p className="text-sm font-bold">${client.low_balance_threshold}</p>
+                                    <div className="relative">
+                                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-white/60 font-bold text-xs">$</span>
+                                        <Input
+                                            type="number"
+                                            step="0.01"
+                                            className="h-8 pl-6 pr-2 bg-white/10 border-white/20 text-white font-bold text-sm rounded-lg focus:bg-white/20 focus:border-white/40"
+                                            value={client.low_balance_threshold}
+                                            onChange={(e) => setClient(client ? { ...client, low_balance_threshold: Number(e.target.value) } : null)}
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         </CardContent>
@@ -324,8 +384,8 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
                                     <div className="flex items-center justify-between">
                                         <Label className="text-xs font-bold text-slate-500 ml-1">Auto-Recharge</Label>
                                         <Switch
-                                            checked={client.auto_recharge_enabled}
-                                            onCheckedChange={(c) => setClient(client ? { ...client, auto_recharge_enabled: c } : null)}
+                                            checked={client?.auto_recharge_enabled ?? false}
+                                            onCheckedChange={handleAutoRechargeToggle}
                                             className="data-[state=checked]:bg-emerald-600"
                                         />
                                     </div>
