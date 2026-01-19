@@ -1,18 +1,16 @@
 'use client';
 
 import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Mail, Lock, Eye, EyeOff, Loader2, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { login } from '@/lib/api/auth';
 import { toast } from 'sonner';
 
 export default function LoginPage() {
-  const router = useRouter();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

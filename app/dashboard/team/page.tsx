@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -26,12 +26,9 @@ import { Label } from "@/components/ui/label";
 import { Badge } from '@/components/ui/badge';
 import {
     Card,
-    CardContent,
-    CardHeader,
-    CardTitle,
-    CardDescription
+    CardContent
 } from "@/components/ui/card";
-import { UserPlus, Mail, Shield, ShieldAlert, Loader2, Users, Search } from 'lucide-react';
+import { UserPlus, Mail, Loader2, Users, Search } from 'lucide-react';
 import { adminApi } from '@/lib/api/admin';
 import { User } from '@/lib/types/api';
 import { getClientId, getUserRole } from '@/lib/auth/role';
@@ -111,7 +108,7 @@ export default function TeamPage() {
         fetchUserInfo();
     }, [router]);
 
-    const fetchUsers = async () => {
+    const fetchUsers = useCallback(async () => {
         if (!clientId) {
             console.log('[TEAM] No client_id available, skipping fetch');
             setLoading(false);
@@ -147,13 +144,13 @@ export default function TeamPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [clientId]);
 
     useEffect(() => {
         if (clientId && userRole !== 'viewer') {
             fetchUsers();
         }
-    }, [clientId, userRole]);
+    }, [clientId, userRole, fetchUsers]);
 
     const handleInvite = async () => {
         // Try to get client_id from multiple sources
@@ -237,7 +234,7 @@ export default function TeamPage() {
             await adminApi.updateUser(userId, { is_active: !currentStatus });
             toast.success(`User ${!currentStatus ? 'enabled' : 'disabled'}`);
             fetchUsers();
-        } catch (error: any) {
+        } catch {
             toast.error('Update failed');
         }
     };

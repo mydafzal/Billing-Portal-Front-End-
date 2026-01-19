@@ -1,5 +1,5 @@
 import api from './client'
-import { ApiResponse, AuthResponse, User, AuthTokens } from '@/lib/types/api'
+import { ApiResponse, AuthResponse, User } from '@/lib/types/api'
 import { setTokens, clearTokens, getRefreshToken } from '@/lib/auth/token'
 
 export async function login(email: string, password: string): Promise<User> {

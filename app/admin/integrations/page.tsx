@@ -1,12 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { Plus, Globe, Save, CreditCard, Smartphone, MessageSquare, Copy } from 'lucide-react';
+import { Globe, CreditCard, Smartphone, Copy } from 'lucide-react';
 
 export default function IntegrationsPage() {
     const [isMounted, setIsMounted] = useState(false);

@@ -66,7 +66,7 @@ async function handleRequest(
       try {
         const requestBody = await request.json();
         body = JSON.stringify(requestBody);
-      } catch (e) {
+      } catch {
         body = undefined;
       }
     }
@@ -87,8 +87,8 @@ async function handleRequest(
     if (contentType && contentType.includes('application/json')) {
       try {
         data = JSON.parse(responseText);
-      } catch (e) {
-        console.error('[PROXY] Failed to parse JSON response:', e);
+      } catch {
+        console.error('[PROXY] Failed to parse JSON response');
         console.error('[PROXY] Response text:', responseText);
         data = { success: false, error: { code: 'PARSE_ERROR', message: 'Invalid JSON response', details: responseText } };
       }

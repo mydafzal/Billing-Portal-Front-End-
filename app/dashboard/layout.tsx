@@ -2,7 +2,7 @@
 import { ReactNode, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, CreditCard, Settings, User, ShieldCheck, LogOut, Wallet, Building2, Users, Globe, UserPlus, Activity } from 'lucide-react';
+import { LayoutDashboard, CreditCard, Settings, User, ShieldCheck, LogOut, Wallet, Building2, Users, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,

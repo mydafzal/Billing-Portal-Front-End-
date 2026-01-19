@@ -29,6 +29,9 @@ export interface Client {
     auto_recharge_amount: number;
     auto_recharge_enabled: boolean;
     allow_admin_auto_recharge_edit: boolean;
+    allow_admin_threshold_edit: boolean;
+    minimum_call_balance?: number;
+    active_call_count?: number;
     per_call_surcharge: number;
     per_sms_surcharge: number;
     services_paused: boolean;
@@ -51,6 +54,8 @@ export interface CreateClientRequest {
     low_balance_threshold?: number;
     auto_recharge_amount?: number;
     allow_admin_auto_recharge_edit?: boolean;
+    allow_admin_threshold_edit?: boolean;
+    minimum_call_balance?: number;
     per_call_surcharge?: number;
     per_sms_surcharge?: number;
     backend_url?: string;
@@ -65,7 +70,10 @@ export interface UpdateClientRequest {
     low_balance_threshold?: number;
     auto_recharge_amount?: number;
     auto_recharge_enabled?: boolean;
+    allow_auto_recharge?: boolean;
     allow_admin_auto_recharge_edit?: boolean;
+    allow_admin_threshold_edit?: boolean;
+    minimum_call_balance?: number;
     per_call_surcharge?: number;
     per_sms_surcharge?: number;
     is_active?: boolean;

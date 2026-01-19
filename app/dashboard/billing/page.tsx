@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import {
     Table,
     TableBody,
@@ -12,7 +11,6 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { billingApi } from '@/lib/api/billing';
 import { BillingHistoryItem } from '@/lib/types/billing';
 import { format } from 'date-fns';
@@ -20,16 +18,19 @@ import { Receipt, AlertCircle, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import { me } from '@/lib/api/auth';
 import { getUserRole } from '@/lib/auth/role';
+import { adminApi } from '@/lib/api/admin';
+import { Client } from '@/lib/types/admin';
 
 export default function BillingHistoryPage() {
-    const router = useRouter();
     const [history, setHistory] = useState<BillingHistoryItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [isSuperadmin, setIsSuperadmin] = useState(false);
+    const [selectedClientId, setSelectedClientId] = useState<string>('');
+    const [clients, setClients] = useState<Client[]>([]);
     const role = getUserRole();
 
     useEffect(() => {
-        const fetchHistory = async () => {
+        const fetchData = async () => {
             try {
                 // Get user info to check if superadmin
                 const userData = await me();
@@ -38,12 +39,47 @@ export default function BillingHistoryPage() {
                 // Set superadmin flag but still try to fetch data
                 if (userRole === 'superadmin' || !userData.client_id) {
                     setIsSuperadmin(true);
+                    // Fetch clients list for superadmin
+                    const clientsResp = await adminApi.getClients(false);
+                    if (clientsResp.success && clientsResp.data?.clients) {
+                        setClients(clientsResp.data.clients);
+                    }
+                } else {
+                    // Regular user - fetch their billing history
+                    const response = await billingApi.getBillingHistory();
+                    if (response.success) {
+                        const data = response.data;
+                        if (Array.isArray(data)) {
+                            setHistory(data);
+                        } else if (data && 'periods' in data) {
+                            setHistory(data.periods || []);
+                        } else {
+                            setHistory([]);
+                        }
+                    }
                 }
+            } catch (error: any) {
+                console.error('Failed to fetch data:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
 
-                // Try to fetch billing history (API may support superadmin without client_id)
-                const response = await billingApi.getBillingHistory();
+        fetchData();
+    }, []);
+
+    useEffect(() => {
+        const fetchHistory = async () => {
+            if (!isSuperadmin) return;
+            if (!selectedClientId) {
+                setHistory([]);
+                return;
+            }
+
+            setLoading(true);
+            try {
+                const response = await billingApi.getBillingHistory(selectedClientId);
                 if (response.success) {
-                    // Handle both array response and periods object response
                     const data = response.data;
                     if (Array.isArray(data)) {
                         setHistory(data);
@@ -53,29 +89,21 @@ export default function BillingHistoryPage() {
                         setHistory([]);
                     }
                 } else {
-                    // Don't show error toast for expected failures
                     if (response.error?.message && !response.error.message.includes('client') && !response.error.message.includes('Client ID')) {
                         toast.error(response.error?.message || 'Failed to load billing history');
                     }
+                    setHistory([]);
                 }
             } catch (error: any) {
-                // Silently handle 400/404 errors (API may not support superadmin without client_id)
-                if (error.response?.status === 400 || error.response?.status === 404) {
-                    setHistory([]);
-                } else {
-                    console.error('Failed to fetch billing history:', error);
-                    // Only show error if it's not related to client_id
-                    if (!error.message?.includes('client') && !error.message?.includes('Client ID')) {
-                        toast.error('An unexpected error occurred while loading billing history');
-                    }
-                }
+                console.error('Failed to fetch billing history:', error);
+                setHistory([]);
             } finally {
                 setLoading(false);
             }
         };
 
         fetchHistory();
-    }, []);
+    }, [selectedClientId, isSuperadmin]);
 
     if (loading) {
         return (
@@ -96,12 +124,26 @@ export default function BillingHistoryPage() {
                         {isSuperadmin ? 'Platform Billing History' : 'Usage History'}
                     </h1>
                     <p className="text-slate-500 text-sm font-medium mt-1">
-                        {isSuperadmin ? 'View all platform-wide usage periods and spending history' : 'View your usage periods and spending history'}
+                        {isSuperadmin ? 'View client usage periods and spending history' : 'View your usage periods and spending history'}
                     </p>
                 </div>
-                <div className="flex items-center gap-2 text-xs font-bold text-slate-500 bg-white shadow-sm px-4 py-2 rounded-lg border border-slate-200 uppercase tracking-widest">
-                    <Receipt size={16} className="text-emerald-600" />
-                    <span>Prepaid Wallet</span>
+                <div className="flex items-center gap-3">
+                    {isSuperadmin && (
+                        <select
+                            className="h-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-600 focus:outline-none focus:border-emerald-500 shadow-sm"
+                            value={selectedClientId}
+                            onChange={(e) => setSelectedClientId(e.target.value)}
+                        >
+                            <option value="">Select a client...</option>
+                            {clients.map(client => (
+                                <option key={client.id} value={client.id}>{client.name}</option>
+                            ))}
+                        </select>
+                    )}
+                    <div className="flex items-center gap-2 text-xs font-bold text-slate-500 bg-white shadow-sm px-4 py-2 rounded-lg border border-slate-200 uppercase tracking-widest">
+                        <Receipt size={16} className="text-emerald-600" />
+                        <span>Prepaid Wallet</span>
+                    </div>
                 </div>
             </div>
 
@@ -121,7 +163,9 @@ export default function BillingHistoryPage() {
                                 <TableHead className="font-bold text-[10px] uppercase text-slate-400 tracking-wider h-11">Voice Cost</TableHead>
                                 <TableHead className="font-bold text-[10px] uppercase text-slate-400 tracking-wider h-11">SMS Cost</TableHead>
                                 <TableHead className="font-bold text-[10px] uppercase text-slate-400 tracking-wider h-11">Subtotal</TableHead>
-                                <TableHead className="font-bold text-[10px] uppercase text-slate-400 tracking-wider h-11">Markup</TableHead>
+                                {role !== 'admin' && (
+                                    <TableHead className="font-bold text-[10px] uppercase text-slate-400 tracking-wider h-11">Markup</TableHead>
+                                )}
                                 <TableHead className="font-bold text-[10px] uppercase text-slate-400 tracking-wider h-11">Total</TableHead>
                                 <TableHead className="font-bold text-[10px] uppercase text-slate-400 tracking-wider h-11 text-center">Status</TableHead>
                             </TableRow>
@@ -131,19 +175,23 @@ export default function BillingHistoryPage() {
                             {loading ? (
                                 Array.from({ length: 3 }).map((_, i) => (
                                     <TableRow key={i} className="animate-pulse border-slate-50">
-                                        <TableCell colSpan={7} className="h-16 bg-slate-50/10"></TableCell>
+                                        <TableCell colSpan={role === 'admin' ? 6 : 7} className="h-16 bg-slate-50/10"></TableCell>
                                     </TableRow>
                                 ))
                             ) : history.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={7} className="h-64 text-center">
+                                    <TableCell colSpan={role === 'admin' ? 6 : 7} className="h-64 text-center">
                                         <div className="flex flex-col items-center justify-center space-y-3 opacity-60">
                                             <div className="p-4 bg-slate-50 rounded-full">
                                                 <Receipt size={32} className="text-slate-400" />
                                             </div>
                                             <div>
-                                                <p className="font-bold text-slate-900 uppercase text-xs tracking-widest">No usage history yet</p>
-                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight mt-1">Usage periods will appear here as you use services.</p>
+                                                <p className="font-bold text-slate-900 uppercase text-xs tracking-widest">
+                                                    {isSuperadmin && !selectedClientId ? 'Select a client to view billing history' : 'No usage history yet'}
+                                                </p>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight mt-1">
+                                                    {isSuperadmin && !selectedClientId ? 'Choose a client from the dropdown above' : 'Usage periods will appear here as you use services.'}
+                                                </p>
                                             </div>
                                         </div>
                                     </TableCell>
@@ -189,16 +237,18 @@ export default function BillingHistoryPage() {
                                                 ${subtotal.toFixed(2)}
                                             </TableCell>
 
-                                            <TableCell className="text-slate-600 text-sm font-bold tabular-nums">
-                                                {markupPercent > 0 ? (
-                                                    <div className="flex flex-col">
-                                                        <span>${markupAmount.toFixed(2)}</span>
-                                                        <span className="text-[10px] text-slate-400">({markupPercent}%)</span>
-                                                    </div>
-                                                ) : (
-                                                    <span>$0.00</span>
-                                                )}
-                                            </TableCell>
+                                            {role !== 'admin' && (
+                                                <TableCell className="text-slate-600 text-sm font-bold tabular-nums">
+                                                    {markupPercent > 0 ? (
+                                                        <div className="flex flex-col">
+                                                            <span>${markupAmount.toFixed(2)}</span>
+                                                            <span className="text-[10px] text-slate-400">({markupPercent}%)</span>
+                                                        </div>
+                                                    ) : (
+                                                        <span>$0.00</span>
+                                                    )}
+                                                </TableCell>
+                                            )}
 
                                             <TableCell className="font-bold text-slate-900 text-sm tabular-nums">
                                                 ${total.toFixed(2)}

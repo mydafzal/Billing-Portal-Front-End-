@@ -2,13 +2,12 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, Building2, Wallet, AlertTriangle, PauseCircle, Plus, Save, Loader2, AlertCircle } from 'lucide-react';
+import { Users, Building2, Wallet, AlertTriangle, PauseCircle, Save, Loader2, AlertCircle } from 'lucide-react';
 import { adminApi } from '@/lib/api/admin';
 import { PlatformOverviewResponse } from '@/lib/types/admin';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { getUserRole } from '@/lib/auth/role';
 import { me } from '@/lib/api/auth';
 
 export default function AdminOverviewPage() {
@@ -71,7 +70,7 @@ export default function AdminOverviewPage() {
                 fetchOverview();
             }
         });
-    }, []);
+    }, [userRole]);
 
     const clientCount = data?.total_clients || 0;
 

@@ -6,7 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { CreditCard, ExternalLink, User, Settings, Save, ShieldCheck, Lock, Loader2, AlertCircle } from 'lucide-react';
 import { changePassword, me } from '@/lib/api/auth';
@@ -24,7 +23,9 @@ export default function SettingsPage() {
   const [autoRechargeEnabled, setAutoRechargeEnabled] = useState<boolean>(false);
   const [hasAutoRechargePermission, setHasAutoRechargePermission] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
+  const [savingAutoRecharge, setSavingAutoRecharge] = useState(false);
+  const [savingThreshold, setSavingThreshold] = useState(false);
+  const [savingToggle, setSavingToggle] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const role = getUserRole();
 
@@ -134,32 +135,38 @@ export default function SettingsPage() {
 
   const handleSaveAutoRecharge = async () => {
     if (role === 'viewer' || !settings?.allow_admin_auto_recharge_edit) return;
-    setIsSaving(true);
+    setSavingAutoRecharge(true);
     try {
       const val = parseFloat(autoRechargeAmount);
       if (isNaN(val) || val < 10) {
         toast.error('Invalid amount', { description: 'Minimum auto-recharge amount is $10' });
+        setSavingAutoRecharge(false);
         return;
       }
       const response = await billingApi.updateAutoRecharge(val);
       if (response.success && response.data) {
         setSettings(response.data);
+        setAutoRechargeAmount(response.data.auto_recharge_amount.toString());
         toast.success('Settings saved', { description: 'Auto-recharge amount updated' });
+      } else {
+        const errorMsg = response.error?.message || 'Failed to update auto-recharge amount';
+        toast.error('Save failed', { description: errorMsg });
       }
     } catch (error: any) {
       toast.error('Save failed', { description: error?.response?.data?.error?.message || 'Failed to save settings' });
     } finally {
-      setIsSaving(false);
+      setSavingAutoRecharge(false);
     }
   };
 
   const handleSaveThreshold = async () => {
     if (role === 'viewer' || !settings?.allow_admin_threshold_edit) return;
-    setIsSaving(true);
+    setSavingThreshold(true);
     try {
       const val = parseFloat(threshold);
       if (isNaN(val) || val < 0) {
         toast.error('Invalid threshold', { description: 'Threshold must be a positive number' });
+        setSavingThreshold(false);
         return;
       }
       const response = await billingApi.updateThreshold(val);
@@ -167,17 +174,20 @@ export default function SettingsPage() {
         setSettings(response.data);
         setThreshold(response.data.low_balance_threshold.toString());
         toast.success('Settings saved', { description: 'Threshold updated' });
+      } else {
+        const errorMsg = response.error?.message || 'Failed to update threshold';
+        toast.error('Save failed', { description: errorMsg });
       }
     } catch (error: any) {
       toast.error('Save failed', { description: error?.response?.data?.error?.message || 'Failed to save settings' });
     } finally {
-      setIsSaving(false);
+      setSavingThreshold(false);
     }
   };
 
   const handleToggleAutoRecharge = async (enabled: boolean) => {
     if (role === 'viewer') return;
-    setIsSaving(true);
+    setSavingToggle(true);
     const previousState = autoRechargeEnabled;
     // Optimistically update UI - this is the source of truth
     setAutoRechargeEnabled(enabled);
@@ -199,7 +209,7 @@ export default function SettingsPage() {
       toast.error('Save failed', { description: errorMsg });
       setAutoRechargeEnabled(previousState);
     } finally {
-      setIsSaving(false);
+      setSavingToggle(false);
     }
   };
 
@@ -298,7 +308,7 @@ export default function SettingsPage() {
                     <Switch
                       checked={autoRechargeEnabled}
                       onCheckedChange={handleToggleAutoRecharge}
-                      disabled={isSaving}
+                      disabled={savingToggle}
                       className="data-[state=checked]:bg-emerald-600"
                     />
                   </div>
@@ -321,16 +331,17 @@ export default function SettingsPage() {
                             type="number"
                             value={autoRechargeAmount}
                             onChange={(e) => setAutoRechargeAmount(e.target.value)}
-                            className="h-10 pl-8 rounded-lg border-slate-200 bg-white font-bold text-sm focus:border-emerald-500"
+                            disabled={!settings?.allow_admin_auto_recharge_edit}
+                            className="h-10 pl-8 rounded-lg border-slate-200 bg-white font-bold text-sm focus:border-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
                           />
                         </div>
                       </div>
                       <Button
                         onClick={handleSaveAutoRecharge}
-                        disabled={isSaving}
-                        className="h-10 px-6 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm w-full md:w-auto"
+                        disabled={savingAutoRecharge || !settings?.allow_admin_auto_recharge_edit}
+                        className="h-10 px-6 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm w-full md:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {isSaving ? 'Saving...' : <><Save className="mr-2 h-4 w-4" /> Save Changes</>}
+                        {savingAutoRecharge ? 'Saving...' : <><Save className="mr-2 h-4 w-4" /> Save Changes</>}
                       </Button>
                     </div>
                   </div>
@@ -354,16 +365,17 @@ export default function SettingsPage() {
                             step="0.01"
                             value={threshold}
                             onChange={(e) => setThreshold(e.target.value)}
-                            className="h-10 pl-8 rounded-lg border-slate-200 bg-white font-bold text-sm focus:border-emerald-500"
+                            disabled={!settings?.allow_admin_threshold_edit}
+                            className="h-10 pl-8 rounded-lg border-slate-200 bg-white font-bold text-sm focus:border-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
                           />
                         </div>
                       </div>
                       <Button
                         onClick={handleSaveThreshold}
-                        disabled={isSaving}
-                        className="h-10 px-6 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm w-full md:w-auto"
+                        disabled={savingThreshold || !settings?.allow_admin_threshold_edit}
+                        className="h-10 px-6 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm w-full md:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {isSaving ? 'Saving...' : <><Save className="mr-2 h-4 w-4" /> Save Changes</>}
+                        {savingThreshold ? 'Saving...' : <><Save className="mr-2 h-4 w-4" /> Save Changes</>}
                       </Button>
                     </div>
                     <p className="text-[10px] font-semibold text-slate-400 ml-1">

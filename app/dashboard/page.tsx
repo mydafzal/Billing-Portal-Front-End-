@@ -1,20 +1,17 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
 import {
   Wallet,
   Activity,
-  ShieldCheck,
   ArrowUpRight,
   ArrowDownLeft,
   Settings,
   ExternalLink,
   Phone,
-  MessageSquare,
   AlertCircle,
   Loader2,
   History,
@@ -26,13 +23,12 @@ import {
   PauseCircle
 } from 'lucide-react';
 import { billingApi } from '@/lib/api/billing';
-import { BillingCurrentResponse, WalletTransaction, BillingHistoryItem } from '@/lib/types/billing';
+import { BillingCurrentResponse, WalletTransaction } from '@/lib/types/billing';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { getUserRole, UserRole } from '@/lib/auth/role';
+import { UserRole } from '@/lib/auth/role';
 import { me } from '@/lib/api/auth';
 import { useRouter } from 'next/navigation';
-import clsx from 'clsx';
 import { adminApi } from '@/lib/api/admin';
 import { PlatformOverviewResponse } from '@/lib/types/admin';
 
@@ -49,8 +45,6 @@ export default function DashboardPage() {
   const [transactionTotal, setTransactionTotal] = useState(0);
   const [loadingTransactions, setLoadingTransactions] = useState(false);
   const [adminOverview, setAdminOverview] = useState<PlatformOverviewResponse | null>(null);
-  const [billingHistory, setBillingHistory] = useState<BillingHistoryItem[]>([]);
-  const [loadingHistory, setLoadingHistory] = useState(false);
   const TRANSACTIONS_PER_PAGE = 5;
 
   const fetchBilling = async () => {
@@ -90,10 +84,8 @@ export default function DashboardPage() {
         if (overviewResp.success && overviewResp.data) {
           setAdminOverview(overviewResp.data);
         }
-        // Fetch billing history for superadmin
-        await fetchBillingHistory();
-        // Fetch transactions for superadmin
-        await fetchTransactions(0);
+        // Don't fetch billing history or transactions for superadmin without client_id
+        // They need to select a client first (handled in dedicated pages)
       } else {
         // User doesn't have client_id - show dashboard with empty/default values
         setBillingData(null);
@@ -110,12 +102,17 @@ export default function DashboardPage() {
     }
   };
 
-  const fetchTransactions = async (page: number) => {
+  const fetchTransactions = useCallback(async (page: number, clientIdToUse?: string) => {
     setLoadingTransactions(true);
     try {
+      // Superadmin without client_id cannot fetch transactions - skip it
+      if (role === 'superadmin' && !clientIdToUse && !user?.client_id) {
+        setTransactions([]);
+        setTransactionTotal(0);
+        return;
+      }
       const offset = page * TRANSACTIONS_PER_PAGE;
-      // For superadmin without client_id, fetch all transactions
-      const response = await billingApi.getTransactions(undefined, TRANSACTIONS_PER_PAGE, offset);
+      const response = await billingApi.getTransactions(clientIdToUse, TRANSACTIONS_PER_PAGE, offset);
       if (response.success && response.data) {
         setTransactions(response.data.transactions);
         setTransactionTotal(response.data.total);
@@ -137,46 +134,23 @@ export default function DashboardPage() {
     } finally {
       setLoadingTransactions(false);
     }
-  };
+  }, [role, user?.client_id]);
 
-  const fetchBillingHistory = async () => {
-    setLoadingHistory(true);
-    try {
-      const response = await billingApi.getBillingHistory(undefined, 10, 0);
-      if (response.success && response.data) {
-        setBillingHistory(response.data.periods || []);
-      } else {
-        // Handle expected errors for superadmin (no client_id)
-        if (response.error?.message?.includes('client') || response.error?.message?.includes('Client ID')) {
-          setBillingHistory([]);
-        }
-      }
-    } catch (error: any) {
-      // Silently handle 400 errors for superadmin (no client_id required)
-      if (error.response?.status === 400) {
-        setBillingHistory([]);
-      } else {
-        console.error('Failed to fetch billing history:', error);
-      }
-    } finally {
-      setLoadingHistory(false);
-    }
-  };
 
   useEffect(() => {
     fetchBilling();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (!loading && role) {
       if (user?.client_id && billingData) {
         fetchTransactions(transactionPage);
-      } else if (role === 'superadmin' && !user?.client_id) {
-        // Fetch transactions for superadmin without client_id
-        fetchTransactions(transactionPage);
       }
+      // Don't fetch transactions for superadmin without client_id
+      // They need to select a client first (handled in dedicated pages)
     }
-  }, [transactionPage, user?.client_id, billingData, role, loading]);
+  }, [transactionPage, user?.client_id, billingData, role, loading, fetchTransactions]);
 
   const handleTopup = async () => {
     if (role === 'viewer') return;
@@ -244,12 +218,6 @@ export default function DashboardPage() {
     }
   };
 
-  const handleToggleAutoRecharge = async (enabled: boolean) => {
-    if (role === 'viewer') return;
-    // Note: Auto-recharge toggle is not directly supported by API
-    // This would need to be handled via settings update if the API supports it
-    toast.info('Auto-recharge settings managed via billing settings');
-  };
 
   if (loading) {
     return (
@@ -408,6 +376,12 @@ export default function DashboardPage() {
                       <><div className="w-2 h-2 rounded-full bg-emerald-500" /> <span className="text-xs font-semibold text-emerald-600">Services Online</span></>
                     )}
                   </div>
+                  {isAdmin && billingData?.active_call_count !== undefined && (
+                    <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-100">
+                      <Phone className="h-4 w-4 text-slate-400" />
+                      <span className="text-xs font-semibold text-slate-600">Active Calls: <span className="font-bold text-slate-900">{billingData.active_call_count}</span></span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Top-up button - Hidden for viewers, shown for admins/superadmins with client_id */}

@@ -26,15 +26,11 @@ import { Label } from "@/components/ui/label";
 import { Badge } from '@/components/ui/badge';
 import {
     Plus,
-    ArrowRight,
     Building2,
     Search,
-    Filter,
     CircleEllipsis,
     ArrowUpRight,
     Loader2,
-    CheckCircle2,
-    XCircle,
     AlertTriangle
 } from 'lucide-react';
 import Link from 'next/link';
@@ -61,7 +57,9 @@ export default function ClientsPage() {
         auto_recharge_amount: 50,
         per_call_surcharge: 0.02,
         per_sms_surcharge: 0.01,
-        allow_admin_auto_recharge_edit: false
+        allow_admin_auto_recharge_edit: false,
+        allow_admin_threshold_edit: false,
+        backend_url: ''
     });
 
     const fetchClients = async () => {
@@ -154,6 +152,12 @@ export default function ClientsPage() {
             if (newClient.allow_admin_auto_recharge_edit !== undefined) {
                 payload.allow_admin_auto_recharge_edit = newClient.allow_admin_auto_recharge_edit;
             }
+            if (newClient.allow_admin_threshold_edit !== undefined) {
+                payload.allow_admin_threshold_edit = newClient.allow_admin_threshold_edit;
+            }
+            if (newClient.minimum_call_balance !== undefined && newClient.minimum_call_balance !== null) {
+                payload.minimum_call_balance = newClient.minimum_call_balance;
+            }
             if (newClient.per_call_surcharge !== undefined && newClient.per_call_surcharge !== null) {
                 payload.per_call_surcharge = newClient.per_call_surcharge;
             }
@@ -182,7 +186,9 @@ export default function ClientsPage() {
                     auto_recharge_amount: 50,
                     per_call_surcharge: 0.02,
                     per_sms_surcharge: 0.01,
-                    allow_admin_auto_recharge_edit: false
+                    allow_admin_auto_recharge_edit: false,
+                    allow_admin_threshold_edit: false,
+                    backend_url: ''
                 });
                 fetchClients();
                 toast.success('Client Created', { description: `${payload.name} has been added.` });
@@ -284,6 +290,12 @@ export default function ClientsPage() {
                                         className="h-10 border-slate-200 rounded-lg focus:border-emerald-500"
                                         onChange={(e) => setNewClient({ ...newClient, billing_email: e.target.value })}
                                     />
+                                    <Input
+                                        placeholder="Backend URL (e.g., https://example.com)"
+                                        type="url"
+                                        className="h-10 border-slate-200 rounded-lg focus:border-emerald-500"
+                                        onChange={(e) => setNewClient({ ...newClient, backend_url: e.target.value })}
+                                    />
                                 </div>
                                 <div className="space-y-2">
                                     <Label className="text-xs font-bold text-slate-500 ml-1">CRM System</Label>
@@ -341,7 +353,20 @@ export default function ClientsPage() {
                                             checked={newClient.allow_admin_auto_recharge_edit}
                                             onChange={(e) => setNewClient({ ...newClient, allow_admin_auto_recharge_edit: e.target.checked })}
                                         />
-                                        <span className="text-xs font-semibold text-slate-600">Allow Client Editing</span>
+                                        <span className="text-xs font-semibold text-slate-600">Allow Auto-Recharge Edit</span>
+                                    </div>
+                                    <div className="flex items-center gap-2.5">
+                                        <input type="checkbox" className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 h-4 w-4"
+                                            checked={newClient.allow_admin_threshold_edit}
+                                            onChange={(e) => setNewClient({ ...newClient, allow_admin_threshold_edit: e.target.checked })}
+                                        />
+                                        <span className="text-xs font-semibold text-slate-600">Allow Threshold Edit</span>
+                                    </div>
+                                    <div className="space-y-1.5 pt-2">
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">Min Call Balance $</span>
+                                        <Input type="number" step="0.01" className="h-9 rounded-lg border-slate-200" value={newClient.minimum_call_balance || ''}
+                                            onChange={(e) => setNewClient({ ...newClient, minimum_call_balance: e.target.value ? Number(e.target.value) : undefined })}
+                                        />
                                     </div>
                                 </div>
                             </div>
@@ -383,13 +408,14 @@ export default function ClientsPage() {
                             <TableHead className="font-bold text-xs text-slate-500">Status</TableHead>
                             <TableHead className="font-bold text-xs text-slate-500">CRM</TableHead>
                             <TableHead className="text-right font-bold text-xs text-slate-500">Balance</TableHead>
+                            <TableHead className="text-right font-bold text-xs text-slate-500">Active Calls</TableHead>
                             <TableHead className="text-right font-bold text-xs text-slate-500 pr-6">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {loading ? (
                             <TableRow>
-                                <TableCell colSpan={5} className="h-64 text-center">
+                                <TableCell colSpan={6} className="h-64 text-center">
                                     <div className="flex flex-col items-center gap-3">
                                         <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
                                         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Loading...</p>
@@ -398,7 +424,7 @@ export default function ClientsPage() {
                             </TableRow>
                         ) : filteredClients.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={5} className="h-64 text-center">
+                                <TableCell colSpan={6} className="h-64 text-center">
                                     <div className="flex flex-col items-center gap-3 text-slate-300">
                                         <CircleEllipsis size={40} />
                                         <p className="font-bold text-sm">No clients found</p>
@@ -452,6 +478,11 @@ export default function ClientsPage() {
                                                     </span>
                                                 )}
                                             </div>
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <span className="text-sm font-bold tabular-nums text-slate-900">
+                                                {client.active_call_count ?? 0}
+                                            </span>
                                         </TableCell>
                                         <TableCell className="text-right pr-6">
                                             <Button variant="ghost" size="sm" className="h-8 px-3 text-xs font-bold text-slate-600 hover:bg-emerald-50 hover:text-emerald-700 rounded-lg group/btn" asChild>

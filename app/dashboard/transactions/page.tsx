@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState, useCallback } from 'react';
 import {
     Table,
     TableBody,
@@ -10,63 +9,33 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { billingApi } from '@/lib/api/billing';
 import { WalletTransaction } from '@/lib/types/billing';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
-import { ArrowDownLeft, ArrowUpRight, History, Wallet, Search, CreditCard, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, History, Wallet, Search, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { me } from '@/lib/api/auth';
+import { adminApi } from '@/lib/api/admin';
+import { Client } from '@/lib/types/admin';
 
 export default function TransactionsPage() {
-    const router = useRouter();
     const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
     const [loading, setLoading] = useState(true);
     const [isSuperadmin, setIsSuperadmin] = useState(false);
+    const [selectedClientId, setSelectedClientId] = useState<string>('');
+    const [clients, setClients] = useState<Client[]>([]);
     const [currentPage, setCurrentPage] = useState(0);
     const [total, setTotal] = useState(0);
     const TRANSACTIONS_PER_PAGE = 20;
 
-    useEffect(() => {
-        const fetchTransactions = async () => {
-            try {
-                // Get user info to check if superadmin
-                const userData = await me();
-                const userRole = userData.role as string;
-                
-                // Set superadmin flag but still try to fetch data
-                if (userRole === 'superadmin' || !userData.client_id) {
-                    setIsSuperadmin(true);
-                }
-
-                // Try to fetch transactions (API may support superadmin without client_id)
-                await loadTransactions(currentPage);
-            } catch (error: any) {
-                // Silently handle 400/404 errors (API may not support superadmin without client_id)
-                if (error.response?.status === 400 || error.response?.status === 404) {
-                    setTransactions([]);
-                } else {
-                    console.error('Failed to fetch transactions:', error);
-                    // Only show error if it's not related to client_id
-                    if (!error.message?.includes('client') && !error.message?.includes('Client ID')) {
-                        toast.error(error.response?.data?.error?.message || error.message || 'An unexpected error occurred');
-                    }
-                }
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchTransactions();
-    }, []);
-
-    const loadTransactions = async (page: number) => {
+    const loadTransactions = useCallback(async (page: number, clientIdToUse?: string) => {
         setLoading(true);
         try {
             const offset = page * TRANSACTIONS_PER_PAGE;
-            const response = await billingApi.getTransactions(undefined, TRANSACTIONS_PER_PAGE, offset);
+            const response = await billingApi.getTransactions(clientIdToUse, TRANSACTIONS_PER_PAGE, offset);
             if (response.success) {
                 setTransactions(response.data.transactions);
                 setTotal(response.data.total);
@@ -75,21 +44,64 @@ export default function TransactionsPage() {
                 if (response.error?.message && !response.error.message.includes('client') && !response.error.message.includes('Client ID')) {
                     toast.error(response.error?.message || 'Failed to load transactions');
                 }
+                setTransactions([]);
+                setTotal(0);
             }
         } catch (error: any) {
             console.error('Failed to fetch transactions:', error);
-            if (!error.message?.includes('client') && !error.message?.includes('Client ID')) {
-                toast.error('Failed to load transactions');
-            }
+            setTransactions([]);
+            setTotal(0);
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
     useEffect(() => {
-        // Load transactions for all users including superadmin
-        loadTransactions(currentPage);
-    }, [currentPage]);
+        const fetchData = async () => {
+            try {
+                // Get user info to check if superadmin
+                const userData = await me();
+                const userRole = userData.role as string;
+                
+                // Set superadmin flag but still try to fetch data
+                if (userRole === 'superadmin' || !userData.client_id) {
+                    setIsSuperadmin(true);
+                    // Fetch clients list for superadmin
+                    const clientsResp = await adminApi.getClients(false);
+                    if (clientsResp.success && clientsResp.data?.clients) {
+                        setClients(clientsResp.data.clients);
+                    }
+                    // Don't load transactions for superadmin until client is selected
+                    setLoading(false);
+                } else {
+                    // Regular user - fetch their transactions
+                    await loadTransactions(currentPage);
+                }
+            } catch (error: any) {
+                console.error('Failed to fetch data:', error);
+                setLoading(false);
+            }
+        };
+
+        fetchData();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    useEffect(() => {
+        // Load transactions when page changes or client selection changes
+        // Only load if not superadmin OR if superadmin has selected a client
+        if (!isSuperadmin) {
+            // Regular user - load their transactions
+            loadTransactions(currentPage);
+        } else if (selectedClientId) {
+            // Superadmin with client selected - load that client's transactions
+            loadTransactions(currentPage, selectedClientId);
+        } else {
+            // Superadmin but no client selected - clear transactions
+            setTransactions([]);
+            setTotal(0);
+        }
+    }, [currentPage, selectedClientId, isSuperadmin, loadTransactions]);
 
     if (loading) {
         return (
@@ -137,12 +149,26 @@ export default function TransactionsPage() {
                         {isSuperadmin ? 'Platform Transactions' : 'Payments'}
                     </h1>
                     <p className="text-slate-500 text-sm font-medium mt-1">
-                        {isSuperadmin ? 'View all platform-wide transaction history' : 'History of credits, top-ups, and service usage'}
+                        {isSuperadmin ? 'View client transaction history' : 'History of credits, top-ups, and service usage'}
                     </p>
                 </div>
-                <div className="bg-white px-4 py-2 rounded-lg border border-slate-200 shadow-sm flex items-center gap-2">
-                    <Wallet className="text-emerald-600" size={16} />
-                    <span className="text-sm font-semibold text-slate-600">Unified Wallet</span>
+                <div className="flex items-center gap-3">
+                    {isSuperadmin && (
+                        <select
+                            className="h-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-600 focus:outline-none focus:border-emerald-500 shadow-sm"
+                            value={selectedClientId}
+                            onChange={(e) => setSelectedClientId(e.target.value)}
+                        >
+                            <option value="">Select a client...</option>
+                            {clients.map(client => (
+                                <option key={client.id} value={client.id}>{client.name}</option>
+                            ))}
+                        </select>
+                    )}
+                    <div className="bg-white px-4 py-2 rounded-lg border border-slate-200 shadow-sm flex items-center gap-2">
+                        <Wallet className="text-emerald-600" size={16} />
+                        <span className="text-sm font-semibold text-slate-600">Unified Wallet</span>
+                    </div>
                 </div>
             </div>
 
@@ -186,8 +212,12 @@ export default function TransactionsPage() {
                                                 <Search size={32} className="text-slate-400" />
                                             </div>
                                             <div>
-                                                <p className="font-semibold text-slate-900">No activity yet</p>
-                                                <p className="text-xs text-slate-500">Your payments will appear here in detail.</p>
+                                                <p className="font-semibold text-slate-900">
+                                                    {isSuperadmin && !selectedClientId ? 'Select a client to view transactions' : 'No activity yet'}
+                                                </p>
+                                                <p className="text-xs text-slate-500">
+                                                    {isSuperadmin && !selectedClientId ? 'Choose a client from the dropdown above' : 'Your payments will appear here in detail.'}
+                                                </p>
                                             </div>
                                         </div>
                                     </TableCell>
@@ -259,7 +289,7 @@ export default function TransactionsPage() {
             </Card>
 
             {/* Quick Actions / Tips */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="p-5 rounded-xl bg-white border border-slate-200 shadow-sm flex items-start gap-4">
                     <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-lg">
                         <CreditCard size={18} />
@@ -282,7 +312,7 @@ export default function TransactionsPage() {
                         </p>
                     </div>
                 </div>
-            </div>
+            </div> */}
         </div>
     );
 }

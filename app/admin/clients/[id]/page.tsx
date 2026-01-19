@@ -11,8 +11,6 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from "@/components/ui/switch";
 import {
     Save,
-    PauseCircle,
-    PlayCircle,
     ArrowLeft,
     Trash2,
     Plus,
@@ -32,7 +30,6 @@ import { adminApi } from '@/lib/api/admin';
 import { Client, ClientMapping } from '@/lib/types/admin';
 import { getUserRole } from '@/lib/auth/role';
 import { clsx } from 'clsx';
-import { billingApi } from '@/lib/api/billing';
 
 export default function ClientDetailsPage({ params }: { params: Promise<{ id: string }> }) {
     const role = getUserRole();
@@ -53,7 +50,7 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
         }
         setIsMounted(true);
         fetchClient(resolvedParams.id);
-    }, [resolvedParams.id, role]);
+    }, [resolvedParams.id, role, router]);
 
     const fetchClient = async (id: string) => {
         try {
@@ -80,9 +77,15 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
                 low_balance_threshold: client.low_balance_threshold,
                 auto_recharge_amount: client.auto_recharge_amount,
                 auto_recharge_enabled: currentAutoRechargeEnabled,
+                allow_auto_recharge: currentAutoRechargeEnabled,
                 allow_admin_auto_recharge_edit: client.allow_admin_auto_recharge_edit,
+                allow_admin_threshold_edit: client.allow_admin_threshold_edit,
+                minimum_call_balance: client.minimum_call_balance,
                 per_call_surcharge: client.per_call_surcharge,
-                per_sms_surcharge: client.per_sms_surcharge
+                per_sms_surcharge: client.per_sms_surcharge,
+                bill_sms: client.bill_sms,
+                billing_email: client.billing_email || undefined,
+                backend_url: client.backend_url || undefined
             });
             if (result.success && result.data) {
                 // Update with the response data but preserve the auto_recharge_enabled state we just saved
@@ -203,7 +206,7 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
             await adminApi.deleteClient(client.id);
             toast.success('Client deactivated');
             router.push('/admin/clients');
-        } catch (error: any) {
+        } catch {
             toast.error('Deactivation failed');
         }
     }
@@ -380,6 +383,40 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
                         </CardHeader>
                         <CardContent className="p-5 space-y-4">
                             <div className="space-y-4">
+                                <div className="space-y-3 pb-3 border-b border-slate-100">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex flex-col">
+                                            <Label className="text-xs font-bold text-slate-500 ml-1">Bill SMS</Label>
+                                            <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-tight ml-1">Charge for SMS messages</span>
+                                        </div>
+                                        <Switch
+                                            checked={client.bill_sms}
+                                            onCheckedChange={(c) => setClient(client ? { ...client, bill_sms: c } : null)}
+                                            className="data-[state=checked]:bg-emerald-600"
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs font-bold text-slate-500 ml-1">Billing Email</Label>
+                                        <Input
+                                            type="email"
+                                            placeholder="billing@example.com"
+                                            className="h-9 border-slate-200 font-semibold text-xs rounded-lg"
+                                            value={client.billing_email || ''}
+                                            onChange={(e) => setClient(client ? { ...client, billing_email: e.target.value || null } : null)}
+                                        />
+                                    </div>
+                                    {/* <div className="space-y-1.5">
+                                        <Label className="text-xs font-bold text-slate-500 ml-1">Backend URL</Label>
+                                        <Input
+                                            type="url"
+                                            placeholder="https://example.com"
+                                            className="h-9 border-slate-200 font-semibold text-xs rounded-lg"
+                                            value={client.backend_url || ''}
+                                            onChange={(e) => setClient(client ? { ...client, backend_url: e.target.value || null } : null)}
+                                        />
+                                        <p className="text-[9px] text-slate-400 font-semibold uppercase tracking-tight ml-1">Client backend API endpoint</p>
+                                    </div> */}
+                                </div>
                                 <div className="space-y-2">
                                     <div className="flex items-center justify-between">
                                         <Label className="text-xs font-bold text-slate-500 ml-1">Auto-Recharge</Label>
@@ -417,16 +454,43 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
                                         />
                                     </div>
                                 </div>
-                                <div className="flex items-center justify-between p-3 bg-slate-50/50 rounded-lg border border-slate-100">
-                                    <div className="flex flex-col">
-                                        <span className="text-[10px] font-bold text-slate-900 uppercase">Permissions</span>
-                                        <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-tight">Allow client to edit settings</span>
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between p-3 bg-slate-50/50 rounded-lg border border-slate-100">
+                                        <div className="flex flex-col">
+                                            <span className="text-[10px] font-bold text-slate-900 uppercase">Auto-Recharge Edit</span>
+                                            <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-tight">Allow Admin to edit auto-recharge</span>
+                                        </div>
+                                        <Switch
+                                            checked={client.allow_admin_auto_recharge_edit}
+                                            onCheckedChange={(c) => setClient(client ? { ...client, allow_admin_auto_recharge_edit: c } : null)}
+                                            className="data-[state=checked]:bg-emerald-600"
+                                        />
                                     </div>
-                                    <Switch
-                                        checked={client.allow_admin_auto_recharge_edit}
-                                        onCheckedChange={(c) => setClient(client ? { ...client, allow_admin_auto_recharge_edit: c } : null)}
-                                        className="data-[state=checked]:bg-emerald-600"
-                                    />
+                                    <div className="flex items-center justify-between p-3 bg-slate-50/50 rounded-lg border border-slate-100">
+                                        <div className="flex flex-col">
+                                            <span className="text-[10px] font-bold text-slate-900 uppercase">Threshold Edit</span>
+                                            <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-tight">Allow Admin to edit threshold</span>
+                                        </div>
+                                        <Switch
+                                            checked={client.allow_admin_threshold_edit}
+                                            onCheckedChange={(c) => setClient(client ? { ...client, allow_admin_threshold_edit: c } : null)}
+                                            className="data-[state=checked]:bg-emerald-600"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider ml-1">Minimum Call Balance</Label>
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">$</span>
+                                        <Input
+                                            type="number"
+                                            step="0.01"
+                                            className="h-9 pl-7 border-slate-200 font-bold text-sm rounded-lg"
+                                            value={client.minimum_call_balance || ''}
+                                            onChange={(e) => setClient(client ? { ...client, minimum_call_balance: e.target.value ? Number(e.target.value) : undefined } : null)}
+                                        />
+                                    </div>
+                                    <p className="text-[9px] text-slate-400 font-semibold uppercase tracking-tight ml-1">Super Admin Only</p>
                                 </div>
                             </div>
                             <Button className="w-full h-10 bg-slate-900 text-white font-bold text-xs rounded-lg shadow-sm hover:bg-slate-800 transition-all active:scale-95" onClick={handleUpdate} disabled={saving}>
@@ -543,7 +607,7 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
                                             await adminApi.updateClientMappings(client.id, { mappings: client.mappings });
                                             toast.success('Resources saved');
                                             fetchClient(client.id);
-                                        } catch (e) {
+                                        } catch {
                                             toast.error('Save failed');
                                         }
                                     }}>

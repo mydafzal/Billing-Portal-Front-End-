@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
@@ -66,7 +66,7 @@ export default function UsersPage() {
         }
     };
 
-    const fetchUsers = async () => {
+    const fetchUsers = useCallback(async () => {
         setLoading(true);
         try {
             // For admins (not superadmins), filter by their own client_id
@@ -107,7 +107,7 @@ export default function UsersPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [selectedClient, isSuperadmin, currentUser]);
 
     const [isMounted, setIsMounted] = useState(false);
 
@@ -135,14 +135,14 @@ export default function UsersPage() {
         if (currentUser || isSuperadmin) {
             fetchUsers();
         }
-    }, [selectedClient, currentUser]);
+    }, [selectedClient, currentUser, isSuperadmin, fetchUsers]);
 
     // Set client_id for admins when inviting
     useEffect(() => {
         if (!isSuperadmin && currentUser?.client_id && inviteData.client_id !== currentUser.client_id) {
             setInviteData(prev => ({ ...prev, client_id: currentUser.client_id }));
         }
-    }, [currentUser, isSuperadmin]);
+    }, [currentUser, isSuperadmin, inviteData.client_id]);
 
     const handleInvite = async () => {
         try {

@@ -29,6 +29,7 @@ export interface BillingCurrentResponse {
   };
   total_spent: number;
   wallet_balance: number;
+  active_call_count?: number;
   subtotal?: number;
   markup_percent?: number;
   markup_amount?: number;
