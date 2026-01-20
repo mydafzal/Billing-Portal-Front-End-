@@ -183,17 +183,49 @@ export const adminApi = {
     async getClient(clientId: string): Promise<ClientApiResponse> {
         try {
             const response = await api.get(`/admin/clients/${clientId}`);
-            console.log('[ADMIN] getClient response:', response.data);
+            console.log('[ADMIN] getClient FULL response:', response);
+            console.log('[ADMIN] getClient response.data:', response.data);
+            console.log('[ADMIN] getClient response.data type:', typeof response.data);
             
             if (response.data && typeof response.data === 'object') {
                 if ('success' in response.data) {
                     const apiResponse = response.data as ApiResponse<Client>;
+                    console.log('[ADMIN] getClient - apiResponse:', apiResponse);
+                    console.log('[ADMIN] getClient - apiResponse.data:', apiResponse.data);
+                    
                     if (apiResponse.success && apiResponse.data) {
-                        return { success: true, data: apiResponse.data };
+                        const clientData = apiResponse.data as any;
+                        console.log('[ADMIN] getClient - clientData object:', clientData);
+                        console.log('[ADMIN] getClient - clientData.allow_auto_recharge:', clientData.allow_auto_recharge);
+                        console.log('[ADMIN] getClient - clientData keys:', Object.keys(clientData));
+                        console.log('[ADMIN] getClient - checking for allow_auto_recharge:', 'allow_auto_recharge' in clientData);
+                        
+                        // Check if field exists with different casing or name
+                        const allowAutoRecharge = clientData.allow_auto_recharge !== undefined 
+                            ? clientData.allow_auto_recharge 
+                            : clientData.allowAutoRecharge !== undefined
+                            ? clientData.allowAutoRecharge
+                            : false;
+                        
+                        console.log('[ADMIN] getClient - resolved allow_auto_recharge:', allowAutoRecharge, 'type:', typeof allowAutoRecharge);
+                        
+                        // Ensure allow_auto_recharge is explicitly set as boolean
+                        const finalClientData: Client = {
+                            ...clientData,
+                            allow_auto_recharge: Boolean(allowAutoRecharge)
+                        };
+                        console.log('[ADMIN] getClient - FINAL client data allow_auto_recharge:', finalClientData.allow_auto_recharge, 'type:', typeof finalClientData.allow_auto_recharge);
+                        return { success: true, data: finalClientData };
                     }
                     return { success: false, data: {} as any, error: apiResponse.error || { code: 'FETCH_CLIENT_FAILED', message: 'Invalid response' } };
                 } else if ('id' in response.data) {
-                    return { success: true, data: response.data as Client };
+                    const clientData = response.data as any;
+                    console.log('[ADMIN] getClient - direct response, allow_auto_recharge:', clientData.allow_auto_recharge);
+                    const finalClientData: Client = {
+                        ...clientData,
+                        allow_auto_recharge: clientData.allow_auto_recharge !== undefined ? Boolean(clientData.allow_auto_recharge) : false
+                    };
+                    return { success: true, data: finalClientData };
                 }
             }
             return { success: false, data: {} as any, error: { code: 'FETCH_CLIENT_FAILED', message: 'Invalid response structure' } };
@@ -206,23 +238,27 @@ export const adminApi = {
 
     async updateClient(clientId: string, data: UpdateClientRequest): Promise<ClientApiResponse> {
         try {
+            console.log('[ADMIN] updateClient request:', { clientId, data: JSON.stringify(data, null, 2) });
             const response = await api.put(`/admin/clients/${clientId}`, data);
-            console.log('[ADMIN] updateClient response:', response.data);
+            console.log('[ADMIN] updateClient response:', JSON.stringify(response.data, null, 2));
             
             if (response.data && typeof response.data === 'object') {
                 if ('success' in response.data) {
                     const apiResponse = response.data as ApiResponse<Client>;
                     if (apiResponse.success && apiResponse.data) {
+                        console.log('[ADMIN] updateClient - response.data.crm_type:', apiResponse.data.crm_type);
                         return { success: true, data: apiResponse.data };
                     }
                     return { success: false, data: {} as any, error: apiResponse.error || { code: 'UPDATE_CLIENT_FAILED', message: 'Invalid response' } };
                 } else if ('id' in response.data) {
+                    console.log('[ADMIN] updateClient - direct response.crm_type:', (response.data as Client).crm_type);
                     return { success: true, data: response.data as Client };
                 }
             }
             return { success: false, data: {} as any, error: { code: 'UPDATE_CLIENT_FAILED', message: 'Invalid response structure' } };
         } catch (error: any) {
             console.error('[ADMIN] updateClient error:', error);
+            console.error('[ADMIN] updateClient error response:', error.response?.data);
             const errorMessage = error.response?.data?.error?.message || error.response?.data?.detail || error.message || 'Failed to update client';
             return { success: false, data: {} as any, error: { code: 'UPDATE_CLIENT_FAILED', message: errorMessage } };
         }
@@ -273,6 +309,93 @@ export const adminApi = {
             console.error('[ADMIN] updateClientMappings error:', error);
             const errorMessage = error.response?.data?.error?.message || error.response?.data?.detail || error.message || 'Failed to update mappings';
             return { success: false, data: {} as any, error: { code: 'UPDATE_MAPPINGS_FAILED', message: errorMessage } };
+        }
+    },
+
+    async updateClientCrmType(clientId: string, crmType: 'boulevard' | 'ghl'): Promise<ClientApiResponse> {
+        try {
+            console.log('[ADMIN] updateClientCrmType request:', { clientId, crmType });
+            
+            // Try specific endpoint first
+            const endpoints = [
+                `/admin/clients/${clientId}/crm-type`,
+                `/admin/clients/${clientId}/crm_type`
+            ];
+            
+            for (const endpoint of endpoints) {
+                try {
+                    const response = await api.put(endpoint, { crm_type: crmType });
+                    console.log('[ADMIN] updateClientCrmType success via:', endpoint);
+                    console.log('[ADMIN] updateClientCrmType response:', JSON.stringify(response.data, null, 2));
+                    
+                    if (response.data && typeof response.data === 'object') {
+                        if ('success' in response.data) {
+                            const apiResponse = response.data as ApiResponse<Client>;
+                            if (apiResponse.success && apiResponse.data) {
+                                console.log('[ADMIN] updateClientCrmType - response.data.crm_type:', apiResponse.data.crm_type);
+                                return { success: true, data: apiResponse.data };
+                            }
+                            return { success: false, data: {} as any, error: apiResponse.error || { code: 'UPDATE_CRM_TYPE_FAILED', message: 'Invalid response' } };
+                        } else if ('id' in response.data) {
+                            console.log('[ADMIN] updateClientCrmType - direct response.crm_type:', (response.data as Client).crm_type);
+                            return { success: true, data: response.data as Client };
+                        }
+                    }
+                } catch (error: any) {
+                    if (error.response?.status !== 404) {
+                        throw error;
+                    }
+                    continue;
+                }
+            }
+            
+            // If specific endpoints don't exist, fall back to main update endpoint
+            console.log('[ADMIN] updateClientCrmType - trying main update endpoint');
+            const response = await api.put(`/admin/clients/${clientId}`, { crm_type: crmType });
+            console.log('[ADMIN] updateClientCrmType - main endpoint response:', JSON.stringify(response.data, null, 2));
+            
+            if (response.data && typeof response.data === 'object') {
+                if ('success' in response.data) {
+                    const apiResponse = response.data as ApiResponse<Client>;
+                    if (apiResponse.success && apiResponse.data) {
+                        console.log('[ADMIN] updateClientCrmType - response.data.crm_type:', apiResponse.data.crm_type);
+                        // Check if crm_type was actually updated
+                        if (apiResponse.data.crm_type !== crmType) {
+                            console.warn('[ADMIN] updateClientCrmType - WARNING: Backend returned different crm_type. Expected:', crmType, 'Got:', apiResponse.data.crm_type);
+                            return { 
+                                success: false, 
+                                data: {} as any, 
+                                error: { 
+                                    code: 'UPDATE_CRM_TYPE_FAILED', 
+                                    message: `Backend did not update CRM type. The backend may not support updating crm_type through this endpoint. Please check the backend API documentation.` 
+                                } 
+                            };
+                        }
+                        return { success: true, data: apiResponse.data };
+                    }
+                    return { success: false, data: {} as any, error: apiResponse.error || { code: 'UPDATE_CRM_TYPE_FAILED', message: 'Invalid response' } };
+                } else if ('id' in response.data) {
+                    const clientData = response.data as Client;
+                    if (clientData.crm_type !== crmType) {
+                        console.warn('[ADMIN] updateClientCrmType - WARNING: Backend returned different crm_type. Expected:', crmType, 'Got:', clientData.crm_type);
+                        return { 
+                            success: false, 
+                            data: {} as any, 
+                            error: { 
+                                code: 'UPDATE_CRM_TYPE_FAILED', 
+                                message: `Backend did not update CRM type. The backend may not support updating crm_type through this endpoint. Please check the backend API documentation.` 
+                            } 
+                        };
+                    }
+                    return { success: true, data: clientData };
+                }
+            }
+            return { success: false, data: {} as any, error: { code: 'UPDATE_CRM_TYPE_FAILED', message: 'Invalid response structure' } };
+        } catch (error: any) {
+            console.error('[ADMIN] updateClientCrmType error:', error);
+            console.error('[ADMIN] updateClientCrmType error response:', error.response?.data);
+            const errorMessage = error.response?.data?.error?.message || error.response?.data?.detail || error.message || 'Failed to update CRM type';
+            return { success: false, data: {} as any, error: { code: 'UPDATE_CRM_TYPE_FAILED', message: errorMessage } };
         }
     },
 

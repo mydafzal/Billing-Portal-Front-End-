@@ -28,6 +28,7 @@ export interface Client {
     low_balance_threshold: number;
     auto_recharge_amount: number;
     auto_recharge_enabled: boolean;
+    allow_auto_recharge: boolean;
     allow_admin_auto_recharge_edit: boolean;
     allow_admin_threshold_edit: boolean;
     minimum_call_balance?: number;
@@ -63,6 +64,7 @@ export interface CreateClientRequest {
 
 export interface UpdateClientRequest {
     name?: string;
+    crm_type?: 'boulevard' | 'ghl';
     markup_percent?: number;
     bill_sms?: boolean;
     billing_email?: string;

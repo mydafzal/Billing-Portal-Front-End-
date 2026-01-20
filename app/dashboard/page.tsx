@@ -376,10 +376,10 @@ export default function DashboardPage() {
                       <><div className="w-2 h-2 rounded-full bg-emerald-500" /> <span className="text-xs font-semibold text-emerald-600">Services Online</span></>
                     )}
                   </div>
-                  {isAdmin && billingData?.active_call_count !== undefined && (
+                  {isAdmin && (
                     <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-100">
                       <Phone className="h-4 w-4 text-slate-400" />
-                      <span className="text-xs font-semibold text-slate-600">Active Calls: <span className="font-bold text-slate-900">{billingData.active_call_count}</span></span>
+                      <span className="text-xs font-semibold text-slate-600">Active Calls: <span className="font-bold text-slate-900">{billingData?.active_call_count ?? 0}</span></span>
                     </div>
                   )}
                 </div>
@@ -410,23 +410,25 @@ export default function DashboardPage() {
                 )}
               </div>
 
-              {/* Auto-recharge settings - Only show for admins with client_id and if allowed */}
-              {settings && settings.allow_admin_auto_recharge_edit && isAdmin && hasClientId && (
+              {/* Auto-recharge settings - Always show for admins with client_id */}
+              {isAdmin && hasClientId && (
                 <div className="bg-slate-50 px-6 py-5 border-t border-slate-100 space-y-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Settings size={14} className="text-slate-400" />
                       <span className="text-xs font-bold text-slate-500">Auto-Recharge</span>
                     </div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">${settings.auto_recharge_amount}</span>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">${settings?.auto_recharge_amount ?? 0}</span>
                   </div>
                   <div className="flex justify-between items-center px-1">
                     <span className="text-[10px] font-bold text-slate-400 uppercase">Low Balance Threshold</span>
-                    <span className="text-xs font-bold text-amber-600">${settings.low_balance_threshold}</span>
+                    <span className="text-xs font-bold text-amber-600">${settings?.low_balance_threshold ?? 0}</span>
                   </div>
-                  <p className="text-[9px] font-semibold text-slate-400 leading-relaxed">
-                    Auto-recharge will trigger when balance falls below ${settings.low_balance_threshold}
-                  </p>
+                  {settings?.allow_admin_auto_recharge_edit && (
+                    <p className="text-[9px] font-semibold text-slate-400 leading-relaxed">
+                      Auto-recharge will trigger when balance falls below ${settings.low_balance_threshold}
+                    </p>
+                  )}
                 </div>
               )}
             </CardContent>
@@ -480,20 +482,11 @@ export default function DashboardPage() {
                   </div>
 
                   {period && (
-                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
-                      <div>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Current Period</p>
-                        <p className="text-xs font-bold text-slate-900 tracking-tight">
-                          {format(new Date(period.start), 'MMM d')} - {format(new Date(period.end), 'MMM d, yyyy')}
-                        </p>
-                      </div>
-                      <div className="flex flex-col items-end">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Days Left</span>
-                        <div className="flex items-center gap-1.5">
-                          <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                          <span className="text-[10px] font-bold text-emerald-600">{period.days_remaining}</span>
-                        </div>
-                      </div>
+                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-0.5">Current Period</p>
+                      <p className="text-xs font-bold text-slate-900 tracking-tight">
+                        {format(new Date(period.start), 'MMM d')} - {format(new Date(period.end), 'MMM d, yyyy')}
+                      </p>
                     </div>
                   )}
                 </div>

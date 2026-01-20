@@ -52,11 +52,52 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
         fetchClient(resolvedParams.id);
     }, [resolvedParams.id, role, router]);
 
+    useEffect(() => {
+        if (client) {
+            console.log('[CLIENT] Client state updated - allow_auto_recharge:', client.allow_auto_recharge);
+            console.log('[CLIENT] Full client object:', JSON.stringify(client, null, 2));
+            console.log('[CLIENT] Client keys:', Object.keys(client));
+            console.log('[CLIENT] allow_auto_recharge in client?', 'allow_auto_recharge' in client);
+            console.log('[CLIENT] client.allow_auto_recharge value:', client.allow_auto_recharge, 'type:', typeof client.allow_auto_recharge);
+        }
+    }, [client]);
+
     const fetchClient = async (id: string) => {
         try {
             const response = await adminApi.getClient(id);
-            if (response.success) {
-                setClient(response.data);
+            if (response.success && response.data) {
+                // Log the raw response to see what we're getting
+                console.log('[CLIENT] ========== FETCH CLIENT START ==========');
+                console.log('[CLIENT] Raw response.data:', response.data);
+                console.log('[CLIENT] response.data.allow_auto_recharge:', (response.data as any).allow_auto_recharge);
+                console.log('[CLIENT] response.data type:', typeof response.data);
+                console.log('[CLIENT] response.data keys:', Object.keys(response.data));
+                
+                // Force extract allow_auto_recharge - check multiple possible locations
+                const rawData = response.data as any;
+                let allowAutoRecharge = false;
+                
+                if (rawData.allow_auto_recharge !== undefined) {
+                    allowAutoRecharge = Boolean(rawData.allow_auto_recharge);
+                    console.log('[CLIENT] Found allow_auto_recharge in rawData:', allowAutoRecharge);
+                } else if (rawData.data?.allow_auto_recharge !== undefined) {
+                    allowAutoRecharge = Boolean(rawData.data.allow_auto_recharge);
+                    console.log('[CLIENT] Found allow_auto_recharge in rawData.data:', allowAutoRecharge);
+                } else {
+                    console.warn('[CLIENT] allow_auto_recharge NOT FOUND in response!');
+                }
+                
+                // Create client data with explicit allow_auto_recharge - FORCE IT TO BE SET
+                const clientData: Client = {
+                    ...response.data,
+                    allow_auto_recharge: allowAutoRecharge  // Explicitly set this field
+                };
+                
+                console.log('[CLIENT] Final clientData.allow_auto_recharge:', clientData.allow_auto_recharge, 'type:', typeof clientData.allow_auto_recharge);
+                console.log('[CLIENT] clientData keys:', Object.keys(clientData));
+                console.log('[CLIENT] ========== FETCH CLIENT END ==========');
+                
+                setClient(clientData);
             }
         } catch (error) {
             console.error('Failed to fetch client:', error);
@@ -69,36 +110,43 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
     const handleUpdate = async () => {
         if (!client) return;
         setSaving(true);
-        // Store the current auto_recharge_enabled state to preserve it
-        const currentAutoRechargeEnabled = client.auto_recharge_enabled;
+        // Store the current allow_auto_recharge state to preserve it
+        const currentAllowAutoRecharge = client.allow_auto_recharge;
+        const updateData = {
+            crm_type: client.crm_type,
+            markup_percent: client.markup_percent,
+            low_balance_threshold: client.low_balance_threshold,
+            auto_recharge_amount: client.auto_recharge_amount,
+            allow_auto_recharge: currentAllowAutoRecharge,
+            allow_admin_auto_recharge_edit: client.allow_admin_auto_recharge_edit,
+            allow_admin_threshold_edit: client.allow_admin_threshold_edit,
+            minimum_call_balance: client.minimum_call_balance,
+            per_call_surcharge: client.per_call_surcharge,
+            per_sms_surcharge: client.per_sms_surcharge,
+            bill_sms: client.bill_sms,
+            billing_email: client.billing_email || undefined,
+            backend_url: client.backend_url || undefined
+        };
+        console.log('[CLIENT] handleUpdate - sending data:', JSON.stringify(updateData, null, 2));
         try {
-            const result = await adminApi.updateClient(client.id, {
-                markup_percent: client.markup_percent,
-                low_balance_threshold: client.low_balance_threshold,
-                auto_recharge_amount: client.auto_recharge_amount,
-                auto_recharge_enabled: currentAutoRechargeEnabled,
-                allow_auto_recharge: currentAutoRechargeEnabled,
-                allow_admin_auto_recharge_edit: client.allow_admin_auto_recharge_edit,
-                allow_admin_threshold_edit: client.allow_admin_threshold_edit,
-                minimum_call_balance: client.minimum_call_balance,
-                per_call_surcharge: client.per_call_surcharge,
-                per_sms_surcharge: client.per_sms_surcharge,
-                bill_sms: client.bill_sms,
-                billing_email: client.billing_email || undefined,
-                backend_url: client.backend_url || undefined
-            });
+            const result = await adminApi.updateClient(client.id, updateData);
+            console.log('[CLIENT] handleUpdate - response:', JSON.stringify(result, null, 2));
             if (result.success && result.data) {
-                // Update with the response data but preserve the auto_recharge_enabled state we just saved
+                console.log('[CLIENT] handleUpdate - response.data.crm_type:', result.data.crm_type);
+                // Update with the response data but preserve the allow_auto_recharge state we just saved
                 setClient({ 
                     ...result.data, 
-                    auto_recharge_enabled: currentAutoRechargeEnabled // Preserve the state we just saved
+                    allow_auto_recharge: currentAllowAutoRecharge // Preserve the state we just saved
                 });
                 toast.success('Settings updated');
+                // Refresh client data from server to ensure we have the latest state
+                await fetchClient(client.id);
             } else {
                 const errorMsg = result.error?.message || 'Failed to update settings';
                 toast.error('Update failed', { description: errorMsg });
             }
         } catch (error: any) {
+            console.error('[CLIENT] handleUpdate - error:', error);
             toast.error('Update failed', { description: error?.message });
         } finally {
             setSaving(false);
@@ -108,28 +156,28 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
     const handleAutoRechargeToggle = async (enabled: boolean) => {
         if (!client) return;
         setSaving(true);
-        const previousState = client.auto_recharge_enabled;
+        const previousState = client.allow_auto_recharge;
         // Optimistically update UI - this is the source of truth until we confirm
-        setClient({ ...client, auto_recharge_enabled: enabled });
+        setClient({ ...client, allow_auto_recharge: enabled });
         try {
             const result = await adminApi.updateClient(client.id, {
-                auto_recharge_enabled: enabled
+                allow_auto_recharge: enabled
             });
             if (result.success && result.data) {
                 // Merge server response but KEEP our enabled state - don't let server override it
                 setClient({ 
                     ...result.data, 
-                    auto_recharge_enabled: enabled // Force our value, not server's
+                    allow_auto_recharge: enabled // Force our value, not server's
                 });
                 toast.success('Auto-recharge setting updated');
             } else {
                 const errorMsg = result.error?.message || 'Failed to update auto-recharge setting';
                 toast.error('Update failed', { description: errorMsg });
-                setClient({ ...client, auto_recharge_enabled: previousState });
+                setClient({ ...client, allow_auto_recharge: previousState });
             }
         } catch (error: any) {
             toast.error('Update failed', { description: error?.message || 'An unexpected error occurred' });
-            setClient({ ...client, auto_recharge_enabled: previousState });
+            setClient({ ...client, allow_auto_recharge: previousState });
         } finally {
             setSaving(false);
         }
@@ -405,7 +453,7 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
                                             onChange={(e) => setClient(client ? { ...client, billing_email: e.target.value || null } : null)}
                                         />
                                     </div>
-                                    {/* <div className="space-y-1.5">
+                                    <div className="space-y-1.5">
                                         <Label className="text-xs font-bold text-slate-500 ml-1">Backend URL</Label>
                                         <Input
                                             type="url"
@@ -415,13 +463,59 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
                                             onChange={(e) => setClient(client ? { ...client, backend_url: e.target.value || null } : null)}
                                         />
                                         <p className="text-[9px] text-slate-400 font-semibold uppercase tracking-tight ml-1">Client backend API endpoint</p>
+                                    </div>
+                                    {/* <div className="space-y-1.5">
+                                        <Label className="text-xs font-bold text-slate-500 ml-1">CRM System</Label>
+                                        <select
+                                            className="flex h-9 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold focus:border-emerald-500 focus:outline-none"
+                                            value={client.crm_type}
+                                            onChange={async (e) => {
+                                                const newCrmType = e.target.value as 'boulevard' | 'ghl';
+                                                if (!client || client.crm_type === newCrmType) return;
+                                                
+                                                const previousCrmType = client.crm_type;
+                                                // Optimistically update UI
+                                                setClient({ ...client, crm_type: newCrmType });
+                                                
+                                                try {
+                                                    const result = await adminApi.updateClientCrmType(client.id, newCrmType);
+                                                    if (result.success && result.data) {
+                                                        setClient({ ...result.data, allow_auto_recharge: client.allow_auto_recharge });
+                                                        toast.success('CRM type updated');
+                                                        // Refresh to ensure we have latest data
+                                                        await fetchClient(client.id);
+                                                    } else {
+                                                        // Revert on failure
+                                                        setClient({ ...client, crm_type: previousCrmType });
+                                                        const errorMsg = result.error?.message || 'Failed to update CRM type';
+                                                        toast.error('Update failed', { description: errorMsg });
+                                                    }
+                                                } catch (error: any) {
+                                                    // Revert on error
+                                                    setClient({ ...client, crm_type: previousCrmType });
+                                                    toast.error('Update failed', { description: error?.message || 'An unexpected error occurred' });
+                                                }
+                                            }}
+                                        >
+                                            <option value="boulevard">Boulevard</option>
+                                            <option value="ghl">GHL</option>
+                                        </select>
+                                        <p className="text-[9px] text-slate-400 font-semibold uppercase tracking-tight ml-1">Super Admin Only</p>
                                     </div> */}
                                 </div>
                                 <div className="space-y-2">
                                     <div className="flex items-center justify-between">
-                                        <Label className="text-xs font-bold text-slate-500 ml-1">Auto-Recharge</Label>
+                                        <div className="flex flex-col">
+                                            <Label className="text-xs font-bold text-slate-500 ml-1">Auto-Recharge</Label>
+                                            {/* Debug: Remove this after fixing */}
+                                            {/* {client && (
+                                                <span className="text-[8px] text-red-500 ml-1">
+                                                    Debug: allow_auto_recharge = {String(client.allow_auto_recharge)} ({typeof client.allow_auto_recharge})
+                                                </span>
+                                            )} */}
+                                        </div>
                                         <Switch
-                                            checked={client?.auto_recharge_enabled ?? false}
+                                            checked={client ? (client.allow_auto_recharge === true) : false}
                                             onCheckedChange={handleAutoRechargeToggle}
                                             className="data-[state=checked]:bg-emerald-600"
                                         />
@@ -431,8 +525,8 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
                                         <Input type="number"
                                             className="h-9 pl-7 border-slate-200 font-bold text-sm rounded-lg"
                                             value={client.auto_recharge_amount}
-                                            onChange={(e) => setClient(client ? { ...client, auto_recharge_amount: Number(e.target.value) } : null)}
-                                            disabled={!client.auto_recharge_enabled}
+                                            onChange={(e) => setClient(client ? { ...client, auto_recharge_amount: Number(e.target.value), allow_auto_recharge: client.allow_auto_recharge } : null)}
+                                            disabled={!client.allow_auto_recharge}
                                         />
                                     </div>
                                 </div>
