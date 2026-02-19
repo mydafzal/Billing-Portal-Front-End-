@@ -81,7 +81,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             <div className="pt-6 mb-4">
               <p className="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Admin Panel</p>
               <div className="space-y-1">
-                {navItem('/admin/integrations', 'Service Setup', Globe)}
+                {navItem('/admin/integrations', 'Stripe Accounts', CreditCard)}
                 {navItem('/admin/clients', 'Clients', Building2)}
                 {navItem('/admin/users', 'Users', Users)}
               </div>
@@ -113,7 +113,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                       pathname === '/dashboard/team' ? 'Team Management' :
                         pathname === '/settings' ? 'Settings' :
                           pathname === '/admin' ? 'Admin Dashboard' :
-                            pathname === '/admin/integrations' ? 'Service Configuration' :
+                            pathname === '/admin/integrations' ? 'Stripe Accounts' :
                               pathname.startsWith('/admin/clients') ? 'Clients' :
                                 pathname.startsWith('/admin/users') ? 'Users' :
                                   'Overview'}

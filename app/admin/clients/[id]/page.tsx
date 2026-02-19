@@ -27,7 +27,7 @@ import {
     RefreshCw
 } from 'lucide-react';
 import { adminApi } from '@/lib/api/admin';
-import { Client, ClientMapping } from '@/lib/types/admin';
+import { Client, ClientMapping, StripeAccount } from '@/lib/types/admin';
 import { getUserRole } from '@/lib/auth/role';
 import { clsx } from 'clsx';
 
@@ -42,6 +42,8 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
     const [adjustmentAmount, setAdjustmentAmount] = useState<string>('');
     const [adjustmentReason, setAdjustmentReason] = useState<string>('');
     const [adjusting, setAdjusting] = useState(false);
+    const [stripeAccounts, setStripeAccounts] = useState<StripeAccount[]>([]);
+    const [savingStripeAccount, setSavingStripeAccount] = useState(false);
 
     useEffect(() => {
         if (role !== 'superadmin') {
@@ -50,6 +52,7 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
         }
         setIsMounted(true);
         fetchClient(resolvedParams.id);
+        fetchStripeAccounts();
     }, [resolvedParams.id, role, router]);
 
     useEffect(() => {
@@ -104,6 +107,41 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
             toast.error('Failed to load client details');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchStripeAccounts = async () => {
+        try {
+            const response = await adminApi.getStripeAccounts();
+            if (response.success) {
+                setStripeAccounts((response.data?.accounts || []).filter(a => a.is_active));
+            }
+        } catch (error) {
+            console.error('Failed to fetch Stripe accounts:', error);
+        }
+    };
+
+    const handleStripeAccountChange = async (accountId: string) => {
+        if (!client) return;
+        setSavingStripeAccount(true);
+        const previousId = client.stripe_account_id;
+        const newId = accountId === '' ? null : accountId;
+        const newName = accountId === '' ? null : stripeAccounts.find(a => a.id === accountId)?.name || null;
+        setClient({ ...client, stripe_account_id: newId, stripe_account_name: newName });
+        try {
+            const result = await adminApi.updateClient(client.id, { stripe_account_id: newId });
+            if (result.success) {
+                toast.success('Stripe account updated');
+                await fetchClient(client.id);
+            } else {
+                setClient({ ...client, stripe_account_id: previousId });
+                toast.error('Failed to update Stripe account', { description: result.error?.message });
+            }
+        } catch (error: any) {
+            setClient({ ...client, stripe_account_id: previousId });
+            toast.error('Failed to update Stripe account', { description: error?.message });
+        } finally {
+            setSavingStripeAccount(false);
         }
     };
 
@@ -273,7 +311,8 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
         );
     }
 
-    const baseUrl = isMounted ? window.location.origin : '';
+    const apiUrl = process.env.NEXT_PUBLIC_API_BASE_URL || '';
+    const baseUrl = apiUrl.replace(/\/api\/?$/, '');
 
     return (
         <div className="space-y-6 animate-in fade-in duration-700">
@@ -463,6 +502,24 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
                                             onChange={(e) => setClient(client ? { ...client, backend_url: e.target.value || null } : null)}
                                         />
                                         <p className="text-[9px] text-slate-400 font-semibold uppercase tracking-tight ml-1">Client backend API endpoint</p>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs font-bold text-slate-500 ml-1">Stripe Account</Label>
+                                        <select
+                                            className="flex h-9 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold focus:border-emerald-500 focus:outline-none"
+                                            value={client.stripe_account_id || ''}
+                                            onChange={(e) => handleStripeAccountChange(e.target.value)}
+                                            disabled={savingStripeAccount}
+                                        >
+                                            {stripeAccounts.map(account => (
+                                                <option key={account.id} value={account.id}>
+                                                    {account.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <p className="text-[9px] text-slate-400 font-semibold uppercase tracking-tight ml-1">
+                                            Payment routing for this client
+                                        </p>
                                     </div>
                                     {/* <div className="space-y-1.5">
                                         <Label className="text-xs font-bold text-slate-500 ml-1">CRM System</Label>
