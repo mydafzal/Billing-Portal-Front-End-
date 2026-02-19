@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -31,7 +31,9 @@ import {
     CircleEllipsis,
     ArrowUpRight,
     Loader2,
-    AlertTriangle
+    AlertTriangle,
+    ChevronLeft,
+    ChevronRight
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -46,6 +48,9 @@ export default function ClientsPage() {
     const [loading, setLoading] = useState(true);
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    const [currentPage, setCurrentPage] = useState(0);
+    const [total, setTotal] = useState(0);
+    const CLIENTS_PER_PAGE = 20;
     const [newClient, setNewClient] = useState<Partial<CreateClientRequest>>({
         id: '',
         name: '',
@@ -62,49 +67,40 @@ export default function ClientsPage() {
         backend_url: ''
     });
 
-    const fetchClients = async () => {
+    const fetchClients = useCallback(async (page: number = 0) => {
         setLoading(true);
         try {
-            console.log('[CLIENTS] Fetching clients...');
-            const response = await adminApi.getClients(false);
-            console.log('[CLIENTS] Response:', response);
-            
+            const offset = page * CLIENTS_PER_PAGE;
+            const response = await adminApi.getClients(false, CLIENTS_PER_PAGE, offset);
             if (response.success) {
                 const clientsList = response.data?.clients || [];
-                console.log('[CLIENTS] Clients fetched:', clientsList.length, clientsList);
                 setClients(clientsList);
-                
-                if (clientsList.length === 0) {
-                    console.warn('[CLIENTS] No clients found in response');
-                }
+                setTotal(response.data?.pagination?.total || clientsList.length);
             } else {
-                console.error('[CLIENTS] Failed to fetch clients:', response.error);
-                toast.error('Failed to load clients', { 
-                    description: response.error?.message || 'Unknown error' 
+                toast.error('Failed to load clients', {
+                    description: response.error?.message || 'Unknown error'
                 });
             }
         } catch (error: any) {
-            console.error('[CLIENTS] Exception fetching clients:', error);
-            console.error('[CLIENTS] Error details:', {
-                message: error.message,
-                response: error.response?.data,
-                status: error.response?.status
-            });
-            toast.error('Failed to load clients', { 
-                description: error.response?.data?.error?.message || error.message || 'Unknown error' 
+            toast.error('Failed to load clients', {
+                description: error.message || 'Unknown error'
             });
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
     useEffect(() => {
         if (role !== 'superadmin') {
             router.push('/dashboard');
             return;
         }
-        fetchClients();
-    }, [role, router]);
+        fetchClients(currentPage);
+    }, [role, router, currentPage, fetchClients]);
+
+    useEffect(() => {
+        setCurrentPage(0);
+    }, [searchQuery]);
 
     const handleCreate = async () => {
         try {
@@ -190,7 +186,7 @@ export default function ClientsPage() {
                     allow_admin_threshold_edit: false,
                     backend_url: ''
                 });
-                fetchClients();
+                fetchClients(0);
                 toast.success('Client Created', { description: `${payload.name} has been added.` });
             } else {
                 // Show detailed error message
@@ -395,7 +391,7 @@ export default function ClientsPage() {
                 </Card>
                 <div className="flex items-center gap-3">
                     <Badge variant="outline" className="bg-slate-50 border-slate-200 text-xs font-bold text-slate-600 px-3 py-1.5 shadow-sm">
-                        {clients.length} clients
+                        {total} clients
                     </Badge>
                 </div>
             </div>
@@ -497,6 +493,33 @@ export default function ClientsPage() {
                         )}
                     </TableBody>
                 </Table>
+                {total > CLIENTS_PER_PAGE && (
+                    <div className="flex items-center justify-between p-4 border-t border-slate-100 bg-slate-50/50">
+                        <p className="text-xs font-semibold text-slate-500">
+                            Showing {currentPage * CLIENTS_PER_PAGE + 1}-{Math.min((currentPage + 1) * CLIENTS_PER_PAGE, total)} of {total}
+                        </p>
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 px-3 text-xs"
+                                onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
+                                disabled={currentPage === 0}
+                            >
+                                <ChevronLeft className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 px-3 text-xs"
+                                onClick={() => setCurrentPage(p => p + 1)}
+                                disabled={(currentPage + 1) * CLIENTS_PER_PAGE >= total}
+                            >
+                                <ChevronRight className="h-3.5 w-3.5" />
+                            </Button>
+                        </div>
+                    </div>
+                )}
             </Card>
         </div>
     );

@@ -69,13 +69,16 @@ export const billingApi = {
             if (response.data && typeof response.data === 'object') {
                 if ('success' in response.data) {
                     const apiResponse = response.data as ApiResponse<{ periods: BillingHistoryItem[] }>;
+                    const pagination = (response.data as any).pagination;
                     if (apiResponse.success && apiResponse.data) {
-                        return { success: true, data: apiResponse.data };
+                        const periods = Array.isArray(apiResponse.data) ? apiResponse.data : (apiResponse.data as any).periods || [];
+                        return { success: true, data: { periods, pagination } };
                     }
                     return { success: false, data: { periods: [] }, error: apiResponse.error || { code: 'FETCH_HISTORY_FAILED', message: 'Invalid response' } };
                 } else if ('periods' in response.data || Array.isArray(response.data)) {
                     const periods = Array.isArray(response.data) ? response.data : response.data.periods || [];
-                    return { success: true, data: { periods } };
+                    const pagination = (response.data as any).pagination;
+                    return { success: true, data: { periods, pagination } };
                 }
             }
             return { success: false, data: { periods: [] }, error: { code: 'FETCH_HISTORY_FAILED', message: 'Invalid response structure' } };
@@ -96,8 +99,9 @@ export const billingApi = {
             if (response.data && typeof response.data === 'object') {
                 if ('success' in response.data) {
                     const apiResponse = response.data as ApiResponse<TransactionsData>;
+                    const pagination = (response.data as any).pagination;
                     if (apiResponse.success && apiResponse.data) {
-                        return { success: true, data: apiResponse.data };
+                        return { success: true, data: { ...apiResponse.data, pagination } };
                     }
                     return { success: false, data: { transactions: [], current_balance: 0, total: 0 }, error: apiResponse.error || { code: 'FETCH_TRANSACTIONS_FAILED', message: 'Invalid response' } };
                 } else if ('transactions' in response.data) {

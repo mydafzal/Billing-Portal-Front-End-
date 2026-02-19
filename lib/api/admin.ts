@@ -7,14 +7,19 @@ import {
     UserListApiResponse,
     InvitationApiResponse,
     CreditAdjustmentApiResponse,
+    StripeAccountApiResponse,
+    StripeAccountListApiResponse,
     CreateClientRequest,
     UpdateClientRequest,
     UpdateMappingsRequest,
     InviteUserRequest,
     UpdateUserRequest,
     CreditAdjustmentRequest,
+    CreateStripeAccountRequest,
+    UpdateStripeAccountRequest,
     PlatformOverviewResponse,
     Client,
+    StripeAccount,
     InvitationResponse,
     CreditAdjustmentResponse
 } from '@/lib/types/admin';
@@ -74,23 +79,24 @@ export const adminApi = {
                                 : 0
                     });
                     
+                    const pagination = (response.data as any).pagination;
                     if (apiResponse.success && apiResponse.data) {
                         if (Array.isArray(apiResponse.data)) {
                             console.log('[ADMIN] Data is array, wrapping in clients object');
-                            return { success: true, data: { clients: apiResponse.data } };
+                            return { success: true, data: { clients: apiResponse.data, pagination } };
                         }
                         if (typeof apiResponse.data === 'object' && 'clients' in apiResponse.data) {
-                            return { success: true, data: apiResponse.data as { clients: Client[] } };
+                            return { success: true, data: { ...(apiResponse.data as { clients: Client[] }), pagination } };
                         }
                     }
-                    return { 
-                        success: false, 
-                        data: { clients: [] }, 
-                        error: apiResponse.error || { code: 'FETCH_CLIENTS_FAILED', message: 'Invalid response' } 
+                    return {
+                        success: false,
+                        data: { clients: [] },
+                        error: apiResponse.error || { code: 'FETCH_CLIENTS_FAILED', message: 'Invalid response' }
                     };
                 } else if ('clients' in response.data) {
                     console.log('[ADMIN] Direct clients structure detected:', response.data.clients);
-                    return { success: true, data: { clients: response.data.clients || [] } };
+                    return { success: true, data: { clients: response.data.clients || [], pagination: response.data.pagination } };
                 } else if (Array.isArray(response.data)) {
                     console.log('[ADMIN] Direct array structure detected:', response.data.length);
                     return { success: true, data: { clients: response.data } };
@@ -471,19 +477,20 @@ export const adminApi = {
                                 : 0
                     });
                     
+                    const pagination = (response.data as any).pagination;
                     if (apiResponse.success && apiResponse.data) {
                         if (Array.isArray(apiResponse.data)) {
                             console.log('[ADMIN] Data is array, wrapping in users object');
-                            return { success: true, data: { users: apiResponse.data } };
+                            return { success: true, data: { users: apiResponse.data, pagination } };
                         }
                         if (typeof apiResponse.data === 'object' && 'users' in apiResponse.data) {
-                            return { success: true, data: apiResponse.data as { users: import('@/lib/types/api').User[] } };
+                            return { success: true, data: { ...(apiResponse.data as { users: import('@/lib/types/api').User[] }), pagination } };
                         }
                     }
                     return { success: false, data: { users: [] }, error: apiResponse.error || { code: 'FETCH_USERS_FAILED', message: 'Invalid response' } };
                 } else if ('users' in response.data) {
                     console.log('[ADMIN] Direct users structure detected:', response.data.users);
-                    return { success: true, data: { users: response.data.users || [] } };
+                    return { success: true, data: { users: response.data.users || [], pagination: response.data.pagination } };
                 } else if (Array.isArray(response.data)) {
                     console.log('[ADMIN] Direct array structure detected:', response.data.length);
                     return { success: true, data: { users: response.data } };
@@ -684,7 +691,7 @@ export const adminApi = {
         try {
             const response = await api.post('/admin/credits/revoke', data);
             console.log('[ADMIN] revokeCredits response:', response.data);
-            
+
             if (response.data && typeof response.data === 'object') {
                 if ('success' in response.data) {
                     const apiResponse = response.data as ApiResponse<CreditAdjustmentResponse>;
@@ -701,6 +708,112 @@ export const adminApi = {
             console.error('[ADMIN] revokeCredits error:', error);
             const errorMessage = error.response?.data?.error?.message || error.response?.data?.detail || error.message || 'Failed to revoke credits';
             return { success: false, data: {} as any, error: { code: 'REVOKE_CREDITS_FAILED', message: errorMessage } };
+        }
+    },
+
+    // Stripe Accounts
+    async getStripeAccounts(): Promise<StripeAccountListApiResponse> {
+        try {
+            const response = await api.get('/admin/stripe-accounts');
+            console.log('[ADMIN] getStripeAccounts response:', response.data);
+
+            if (response.data && typeof response.data === 'object') {
+                if ('success' in response.data) {
+                    const apiResponse = response.data as ApiResponse<StripeAccount[] | { accounts: StripeAccount[] }>;
+                    if (apiResponse.success && apiResponse.data) {
+                        if (Array.isArray(apiResponse.data)) {
+                            return { success: true, data: { accounts: apiResponse.data } };
+                        }
+                        if (typeof apiResponse.data === 'object' && 'accounts' in apiResponse.data) {
+                            return { success: true, data: apiResponse.data as { accounts: StripeAccount[] } };
+                        }
+                    }
+                    return { success: false, data: { accounts: [] }, error: apiResponse.error || { code: 'FETCH_STRIPE_ACCOUNTS_FAILED', message: 'Invalid response' } };
+                } else if ('accounts' in response.data) {
+                    return { success: true, data: { accounts: response.data.accounts || [] } };
+                } else if (Array.isArray(response.data)) {
+                    return { success: true, data: { accounts: response.data } };
+                }
+            }
+            return { success: false, data: { accounts: [] }, error: { code: 'FETCH_STRIPE_ACCOUNTS_FAILED', message: 'Invalid response structure' } };
+        } catch (error: any) {
+            console.error('[ADMIN] getStripeAccounts error:', error);
+            const errorMessage = error.response?.data?.error?.message || error.response?.data?.detail || error.message || 'Failed to fetch Stripe accounts';
+            return { success: false, data: { accounts: [] }, error: { code: 'FETCH_STRIPE_ACCOUNTS_FAILED', message: errorMessage } };
+        }
+    },
+
+    async createStripeAccount(data: CreateStripeAccountRequest): Promise<StripeAccountApiResponse> {
+        try {
+            console.log('[ADMIN] createStripeAccount request:', { name: data.name, is_default: data.is_default });
+            const response = await api.post('/admin/stripe-accounts', data);
+            console.log('[ADMIN] createStripeAccount response:', response.data);
+
+            if (response.data && typeof response.data === 'object') {
+                if ('success' in response.data) {
+                    const apiResponse = response.data as ApiResponse<StripeAccount>;
+                    if (apiResponse.success && apiResponse.data) {
+                        return { success: true, data: apiResponse.data };
+                    }
+                    return { success: false, data: {} as any, error: apiResponse.error || { code: 'CREATE_STRIPE_ACCOUNT_FAILED', message: 'Invalid response' } };
+                } else if ('id' in response.data) {
+                    return { success: true, data: response.data as StripeAccount };
+                }
+            }
+            return { success: false, data: {} as any, error: { code: 'CREATE_STRIPE_ACCOUNT_FAILED', message: 'Invalid response structure' } };
+        } catch (error: any) {
+            console.error('[ADMIN] createStripeAccount error:', error);
+            const errorMessage = error.response?.data?.error?.message || error.response?.data?.detail || error.message || 'Failed to create Stripe account';
+            return { success: false, data: {} as any, error: { code: 'CREATE_STRIPE_ACCOUNT_FAILED', message: errorMessage } };
+        }
+    },
+
+    async updateStripeAccount(accountId: string, data: UpdateStripeAccountRequest): Promise<StripeAccountApiResponse> {
+        try {
+            console.log('[ADMIN] updateStripeAccount request:', { accountId, data });
+            const response = await api.put(`/admin/stripe-accounts/${accountId}`, data);
+            console.log('[ADMIN] updateStripeAccount response:', response.data);
+
+            if (response.data && typeof response.data === 'object') {
+                if ('success' in response.data) {
+                    const apiResponse = response.data as ApiResponse<StripeAccount>;
+                    if (apiResponse.success && apiResponse.data) {
+                        return { success: true, data: apiResponse.data };
+                    }
+                    return { success: false, data: {} as any, error: apiResponse.error || { code: 'UPDATE_STRIPE_ACCOUNT_FAILED', message: 'Invalid response' } };
+                } else if ('id' in response.data) {
+                    return { success: true, data: response.data as StripeAccount };
+                }
+            }
+            return { success: false, data: {} as any, error: { code: 'UPDATE_STRIPE_ACCOUNT_FAILED', message: 'Invalid response structure' } };
+        } catch (error: any) {
+            console.error('[ADMIN] updateStripeAccount error:', error);
+            const errorMessage = error.response?.data?.error?.message || error.response?.data?.detail || error.message || 'Failed to update Stripe account';
+            return { success: false, data: {} as any, error: { code: 'UPDATE_STRIPE_ACCOUNT_FAILED', message: errorMessage } };
+        }
+    },
+
+    async deleteStripeAccount(accountId: string): Promise<any> {
+        try {
+            const response = await api.delete(`/admin/stripe-accounts/${accountId}`);
+            console.log('[ADMIN] deleteStripeAccount response:', response.data);
+
+            if (response.data && typeof response.data === 'object') {
+                if ('success' in response.data) {
+                    const apiResponse = response.data as ApiResponse<any>;
+                    if (apiResponse.success) {
+                        return { success: true, data: apiResponse.data || {} };
+                    }
+                    return { success: false, error: apiResponse.error || { code: 'DELETE_STRIPE_ACCOUNT_FAILED', message: 'Invalid response' } };
+                } else {
+                    return { success: true, data: response.data };
+                }
+            }
+            return { success: true, data: {} };
+        } catch (error: any) {
+            console.error('[ADMIN] deleteStripeAccount error:', error);
+            const errorMessage = error.response?.data?.error?.message || error.response?.data?.detail || error.message || 'Failed to deactivate Stripe account';
+            return { success: false, error: { code: 'DELETE_STRIPE_ACCOUNT_FAILED', message: errorMessage } };
         }
     }
 };

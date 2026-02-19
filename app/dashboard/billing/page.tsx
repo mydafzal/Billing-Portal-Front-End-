@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
     Table,
     TableBody,
@@ -11,10 +11,11 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { billingApi } from '@/lib/api/billing';
 import { BillingHistoryItem } from '@/lib/types/billing';
 import { format } from 'date-fns';
-import { Receipt, AlertCircle, FileText } from 'lucide-react';
+import { Receipt, AlertCircle, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { me } from '@/lib/api/auth';
 import { getUserRole } from '@/lib/auth/role';
@@ -27,6 +28,9 @@ export default function BillingHistoryPage() {
     const [isSuperadmin, setIsSuperadmin] = useState(false);
     const [selectedClientId, setSelectedClientId] = useState<string>('');
     const [clients, setClients] = useState<Client[]>([]);
+    const [currentPage, setCurrentPage] = useState(0);
+    const [total, setTotal] = useState(0);
+    const PERIODS_PER_PAGE = 12;
     const role = getUserRole();
 
     useEffect(() => {
@@ -46,13 +50,17 @@ export default function BillingHistoryPage() {
                     }
                 } else {
                     // Regular user - fetch their billing history
-                    const response = await billingApi.getBillingHistory();
+                    const offset = currentPage * PERIODS_PER_PAGE;
+                    const response = await billingApi.getBillingHistory(undefined, PERIODS_PER_PAGE, offset);
                     if (response.success) {
                         const data = response.data;
                         if (Array.isArray(data)) {
                             setHistory(data);
                         } else if (data && 'periods' in data) {
                             setHistory(data.periods || []);
+                            if (data.pagination) {
+                                setTotal(data.pagination.total);
+                            }
                         } else {
                             setHistory([]);
                         }
@@ -73,18 +81,23 @@ export default function BillingHistoryPage() {
             if (!isSuperadmin) return;
             if (!selectedClientId) {
                 setHistory([]);
+                setTotal(0);
                 return;
             }
 
             setLoading(true);
             try {
-                const response = await billingApi.getBillingHistory(selectedClientId);
+                const offset = currentPage * PERIODS_PER_PAGE;
+                const response = await billingApi.getBillingHistory(selectedClientId, PERIODS_PER_PAGE, offset);
                 if (response.success) {
                     const data = response.data;
                     if (Array.isArray(data)) {
                         setHistory(data);
                     } else if (data && 'periods' in data) {
                         setHistory(data.periods || []);
+                        if (data.pagination) {
+                            setTotal(data.pagination.total);
+                        }
                     } else {
                         setHistory([]);
                     }
@@ -93,17 +106,23 @@ export default function BillingHistoryPage() {
                         toast.error(response.error?.message || 'Failed to load billing history');
                     }
                     setHistory([]);
+                    setTotal(0);
                 }
             } catch (error: any) {
                 console.error('Failed to fetch billing history:', error);
                 setHistory([]);
+                setTotal(0);
             } finally {
                 setLoading(false);
             }
         };
 
         fetchHistory();
-    }, [selectedClientId, isSuperadmin]);
+    }, [selectedClientId, isSuperadmin, currentPage]);
+
+    useEffect(() => {
+        setCurrentPage(0);
+    }, [selectedClientId]);
 
     if (loading) {
         return (
@@ -277,6 +296,33 @@ export default function BillingHistoryPage() {
                         </TableBody>
                     </Table>
                 </CardContent>
+                {total > PERIODS_PER_PAGE && (
+                    <div className="flex items-center justify-between p-4 border-t border-slate-100 bg-slate-50/50">
+                        <p className="text-xs font-semibold text-slate-500">
+                            Showing {currentPage * PERIODS_PER_PAGE + 1}-{Math.min((currentPage + 1) * PERIODS_PER_PAGE, total)} of {total}
+                        </p>
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 px-3 text-xs"
+                                onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
+                                disabled={currentPage === 0}
+                            >
+                                <ChevronLeft className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 px-3 text-xs"
+                                onClick={() => setCurrentPage(p => p + 1)}
+                                disabled={(currentPage + 1) * PERIODS_PER_PAGE >= total}
+                            >
+                                <ChevronRight className="h-3.5 w-3.5" />
+                            </Button>
+                        </div>
+                    </div>
+                )}
             </Card>
 
             {/* Footer Help */}

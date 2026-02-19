@@ -23,7 +23,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from '@/components/ui/badge';
-import { Mail, Pencil, Loader2 } from 'lucide-react';
+import { Mail, Pencil, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { adminApi } from '@/lib/api/admin';
 import { InviteUserRequest, Client } from '@/lib/types/admin';
@@ -47,6 +47,11 @@ export default function UsersPage() {
         role: 'viewer',
         client_id: ''
     });
+
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(0);
+    const [total, setTotal] = useState(0);
+    const USERS_PER_PAGE = 20;
 
     // Filter State
     const [selectedClient, setSelectedClient] = useState<string>('');
@@ -75,23 +80,25 @@ export default function UsersPage() {
                 // Admin users should only see users from their own client
                 clientIdToUse = currentUser.client_id;
             }
-            
-            console.log('[USERS] Fetching users...', { selectedClient, clientIdToUse, isSuperadmin });
-            const response = await adminApi.getUsers(clientIdToUse);
+
+            const offset = currentPage * USERS_PER_PAGE;
+            console.log('[USERS] Fetching users...', { selectedClient, clientIdToUse, isSuperadmin, offset });
+            const response = await adminApi.getUsers(clientIdToUse, USERS_PER_PAGE, offset);
             console.log('[USERS] Response:', response);
-            
+
             if (response.success) {
                 const usersList = response.data?.users || [];
                 console.log('[USERS] Users fetched:', usersList.length, usersList);
                 setUsers(usersList);
-                
+                setTotal(response.data?.pagination?.total || usersList.length);
+
                 if (usersList.length === 0) {
                     console.warn('[USERS] No users found in response');
                 }
             } else {
                 console.error('[USERS] Failed to fetch users:', response.error);
-                toast.error('Failed to load users', { 
-                    description: response.error?.message || 'Unknown error' 
+                toast.error('Failed to load users', {
+                    description: response.error?.message || 'Unknown error'
                 });
             }
         } catch (error: any) {
@@ -101,13 +108,13 @@ export default function UsersPage() {
                 response: error.response?.data,
                 status: error.response?.status
             });
-            toast.error('Failed to load users', { 
-                description: error.response?.data?.error?.message || error.message || 'Unknown error' 
+            toast.error('Failed to load users', {
+                description: error.response?.data?.error?.message || error.message || 'Unknown error'
             });
         } finally {
             setLoading(false);
         }
-    }, [selectedClient, isSuperadmin, currentUser]);
+    }, [selectedClient, isSuperadmin, currentUser, currentPage]);
 
     const [isMounted, setIsMounted] = useState(false);
 
@@ -137,6 +144,10 @@ export default function UsersPage() {
         }
     }, [selectedClient, currentUser, isSuperadmin, fetchUsers]);
 
+    useEffect(() => {
+        setCurrentPage(0);
+    }, [selectedClient]);
+
     // Set client_id for admins when inviting
     useEffect(() => {
         if (!isSuperadmin && currentUser?.client_id && inviteData.client_id !== currentUser.client_id) {
@@ -148,6 +159,11 @@ export default function UsersPage() {
         try {
             if (!inviteData.email || !inviteData.role) {
                 toast.error('Missing Fields', { description: 'Email and role are required.' });
+                return;
+            }
+
+            if (inviteData.role !== 'superadmin' && !inviteData.client_id) {
+                toast.error('Client Required', { description: 'Viewer and Admin roles must be assigned to a client.' });
                 return;
             }
             
@@ -214,81 +230,23 @@ export default function UsersPage() {
     const handleUpdateUser = async () => {
         if (!editingUser) return;
         try {
-            // Build update data including client_id if superadmin is editing
+            if (editingUser.role !== 'superadmin' && !editingUser.client_id) {
+                toast.error('Client Required', { description: 'Viewer and Admin roles must be assigned to a client.' });
+                return;
+            }
+
             const updateData: any = {
                 role: editingUser.role,
                 is_active: editingUser.is_active
             };
-            
-            // Include client_id in the update request if superadmin is editing
-            // Always include it if it exists in editingUser (even if empty string means remove)
-            if (isSuperadmin && 'client_id' in editingUser) {
-                // If client_id is empty string, set to null to remove association
-                updateData.client_id = editingUser.client_id === '' ? null : (editingUser.client_id || null);
-                console.log('[USERS] Including client_id in update request:', updateData.client_id);
+            if (isSuperadmin) {
+                updateData.client_id = editingUser.client_id || '';
             }
-            
-            console.log('[USERS] Updating user with data:', JSON.stringify(updateData, null, 2));
-            console.log('[USERS] editingUser full state:', JSON.stringify(editingUser, null, 2));
-            console.log('[USERS] isSuperadmin:', isSuperadmin);
-            
-            // Update user with all fields including client_id
+
             const response = await adminApi.updateUser(editingUser.id, updateData);
-            console.log('[USERS] Update response:', response);
-            
+
             if (response.success) {
-                console.log('[USERS] Update successful, response data:', response.data);
-                
-                // Check if client_id was actually updated
-                const requestedClientId = updateData.client_id;
-                const returnedClientId = response.data?.client_id;
-                
-                if (requestedClientId !== undefined) {
-                    console.log('[USERS] Client ID check:', { 
-                        requested: requestedClientId, 
-                        returned: returnedClientId,
-                        match: requestedClientId === returnedClientId || (requestedClientId === null && returnedClientId === null)
-                    });
-                    
-                    // Check if the client_id was actually updated
-                    if (requestedClientId !== returnedClientId && !(requestedClientId === null && returnedClientId === null)) {
-                        console.warn('[USERS] Client ID was not updated:', { 
-                            requested: requestedClientId, 
-                            returned: returnedClientId,
-                            note: 'The API may not support updating client_id via PUT /admin/users/{userId}'
-                        });
-                        
-                        // Try separate endpoint as fallback
-                        console.log('[USERS] Attempting to assign client_id via separate endpoint as fallback...');
-                        const assignResponse = await adminApi.assignUserToClient(editingUser.id, requestedClientId);
-                        console.log('[USERS] Assign client response:', assignResponse);
-                        
-                        if (assignResponse.success) {
-                            toast.success('User Updated', { 
-                                description: 'User information including client association updated successfully' 
-                            });
-                        } else if (assignResponse.error?.code === 'ENDPOINT_NOT_FOUND') {
-                            // Show a more helpful message with action options
-                            toast.warning('User Updated (Client Association Cannot Be Changed)', { 
-                                description: 'User role and status updated successfully. However, the API does not support changing client association for existing users. To associate this user with a client, please use the "Re-invite" option from the user menu or contact support.',
-                                duration: 8000
-                            });
-                        } else {
-                            toast.warning('User Updated (Client Assignment Failed)', { 
-                                description: `User role and status updated, but client assignment failed: ${assignResponse.error?.message || 'Unknown error'}` 
-                            });
-                        }
-                    } else {
-                        toast.success('User Updated', { 
-                            description: 'User information including client association updated successfully' 
-                        });
-                    }
-                } else {
-                    toast.success('User Updated', { 
-                        description: 'User information updated successfully' 
-                    });
-                }
-                
+                toast.success('User Updated', { description: 'User information updated successfully' });
                 setEditOpen(false);
                 setEditingUser(null);
                 fetchUsers();
@@ -365,7 +323,14 @@ export default function UsersPage() {
                                             <Label className="text-xs font-bold text-slate-500 ml-1">Role</Label>
                                             <select className="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold focus:outline-none focus:border-emerald-500"
                                                 value={inviteData.role}
-                                                onChange={(e) => setInviteData({ ...inviteData, role: e.target.value as any })}
+                                                onChange={(e) => {
+                                                    const newRole = e.target.value;
+                                                    setInviteData({
+                                                        ...inviteData,
+                                                        role: newRole as any,
+                                                        client_id: newRole === 'superadmin' ? '' : inviteData.client_id
+                                                    });
+                                                }}
                                             >
                                                 <option value="viewer">Viewer</option>
                                                 <option value="admin">Admin</option>
@@ -375,15 +340,21 @@ export default function UsersPage() {
                                         {isSuperadmin && (
                                             <div className="space-y-1.5">
                                                 <Label className="text-xs font-bold text-slate-500 ml-1">Client</Label>
-                                                <select className="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold focus:outline-none focus:border-emerald-500"
-                                                    value={inviteData.client_id || ''}
+                                                <select className={`flex h-10 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold focus:outline-none focus:border-emerald-500 ${inviteData.role === 'superadmin' ? 'bg-slate-50 text-slate-400 cursor-not-allowed' : 'bg-white'}`}
+                                                    value={inviteData.role === 'superadmin' ? '' : (inviteData.client_id || '')}
                                                     onChange={(e) => setInviteData({ ...inviteData, client_id: e.target.value })}
+                                                    disabled={inviteData.role === 'superadmin'}
                                                 >
                                                     <option value="">Global</option>
                                                     {clients.map(client => (
                                                         <option key={client.id} value={client.id}>{client.name}</option>
                                                     ))}
                                                 </select>
+                                                {!inviteData.client_id && inviteData.role !== 'superadmin' && (
+                                                    <p className="text-[10px] font-medium text-amber-600 mt-1">
+                                                        Viewer and Admin roles require a client.
+                                                    </p>
+                                                )}
                                             </div>
                                         )}
                                         {!isSuperadmin && currentUser && (
@@ -426,33 +397,36 @@ export default function UsersPage() {
                                     <Label className="text-xs font-bold text-slate-500 ml-1">Role</Label>
                                     <select className="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold focus:outline-none focus:border-emerald-500"
                                         value={editingUser.role}
-                                        onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value })}
+                                        onChange={(e) => {
+                                            const newRole = e.target.value;
+                                            setEditingUser({
+                                                ...editingUser,
+                                                role: newRole,
+                                                client_id: newRole === 'superadmin' ? '' : editingUser.client_id
+                                            });
+                                        }}
                                     >
                                         <option value="viewer">Viewer</option>
                                         <option value="admin">Admin</option>
                                         <option value="superadmin">Superadmin</option>
                                     </select>
                                 </div>
-                                
-                                {/* Client Association - Only for superadmins */}
+
+                                {/* Client Association */}
                                 {isSuperadmin && (
                                     <div className="space-y-1.5">
                                         <Label className="text-xs font-bold text-slate-500 ml-1">Organization (Client)</Label>
-                                        <select 
-                                            className="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold focus:outline-none focus:border-emerald-500"
-                                            value={editingUser.client_id || ''}
+                                        <select
+                                            className={`flex h-10 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold focus:outline-none focus:border-emerald-500 ${editingUser.role === 'superadmin' ? 'bg-slate-50 text-slate-400 cursor-not-allowed' : 'bg-white'}`}
+                                            value={editingUser.role === 'superadmin' ? '' : (editingUser.client_id || '')}
                                             onChange={(e) => setEditingUser({ ...editingUser, client_id: e.target.value })}
+                                            disabled={editingUser.role === 'superadmin'}
                                         >
                                             <option value="">No Organization (Global)</option>
                                             {clients.map(client => (
                                                 <option key={client.id} value={client.id}>{client.name}</option>
                                             ))}
                                         </select>
-                                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 mt-2">
-                                            <p className="text-[10px] font-semibold text-amber-800 leading-relaxed">
-                                                <span className="font-bold">Note:</span> Client association cannot be changed via API. To associate this user with a different organization, you'll need to re-invite them using the "Invite User" button with the correct client selected.
-                                            </p>
-                                        </div>
                                     </div>
                                 )}
                                 
@@ -470,11 +444,6 @@ export default function UsersPage() {
                                 <Button onClick={handleUpdateUser} className="w-full h-10 bg-emerald-600 text-white font-bold text-sm rounded-lg shadow-sm hover:bg-emerald-700 transition-all">
                                     Save Changes
                                 </Button>
-                                {isSuperadmin && editingUser && editingUser.client_id && editingUser.client_id !== '' && (
-                                    <p className="text-[10px] font-medium text-amber-600 text-center px-2">
-                                        ⚠️ Client association cannot be changed via API. To associate this user with a client, use "Invite User" with the correct client selected.
-                                    </p>
-                                )}
                             </div>
                         </DialogFooter>
                     </DialogContent>
@@ -552,6 +521,33 @@ export default function UsersPage() {
                         )}
                     </TableBody>
                 </Table>
+                {total > USERS_PER_PAGE && (
+                    <div className="flex items-center justify-between p-4 border-t border-slate-100 bg-slate-50/50">
+                        <p className="text-xs font-semibold text-slate-500">
+                            Showing {currentPage * USERS_PER_PAGE + 1}-{Math.min((currentPage + 1) * USERS_PER_PAGE, total)} of {total}
+                        </p>
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 px-3 text-xs"
+                                onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
+                                disabled={currentPage === 0}
+                            >
+                                <ChevronLeft className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 px-3 text-xs"
+                                onClick={() => setCurrentPage(p => p + 1)}
+                                disabled={(currentPage + 1) * USERS_PER_PAGE >= total}
+                            >
+                                <ChevronRight className="h-3.5 w-3.5" />
+                            </Button>
+                        </div>
+                    </div>
+                )}
             </Card>
         </div>
     );

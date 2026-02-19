@@ -59,7 +59,7 @@ export interface BillingHistoryItem {
   paid_at?: string;
 }
 
-export type BillingHistoryApiResponse = ApiResponse<{ periods: BillingHistoryItem[] }>;
+export type BillingHistoryApiResponse = ApiResponse<{ periods: BillingHistoryItem[]; pagination?: ApiResponse<any>['pagination'] }>;
 
 export interface WalletTransaction {
   id: string;
@@ -74,6 +74,7 @@ export interface TransactionsData {
   transactions: WalletTransaction[];
   current_balance: number;
   total: number;
+  pagination?: { total: number; limit: number; offset: number; has_more: boolean };
 }
 
 export type TransactionsApiResponse = ApiResponse<TransactionsData>;

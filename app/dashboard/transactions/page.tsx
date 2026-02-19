@@ -38,7 +38,7 @@ export default function TransactionsPage() {
             const response = await billingApi.getTransactions(clientIdToUse, TRANSACTIONS_PER_PAGE, offset);
             if (response.success) {
                 setTransactions(response.data.transactions);
-                setTotal(response.data.total);
+                setTotal(response.data.pagination?.total ?? response.data.total ?? 0);
             } else {
                 // Don't show error toast for expected failures (superadmin, no client, etc.)
                 if (response.error?.message && !response.error.message.includes('client') && !response.error.message.includes('Client ID')) {

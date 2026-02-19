@@ -37,6 +37,8 @@ export interface Client {
     per_sms_surcharge: number;
     services_paused: boolean;
     stripe_customer_id: string | null;
+    stripe_account_id: string | null;
+    stripe_account_name: string | null;
     backend_url: string | null;
     is_active: boolean;
     created_at: string;
@@ -60,6 +62,7 @@ export interface CreateClientRequest {
     per_call_surcharge?: number;
     per_sms_surcharge?: number;
     backend_url?: string;
+    stripe_account_id?: string;
 }
 
 export interface UpdateClientRequest {
@@ -79,6 +82,7 @@ export interface UpdateClientRequest {
     per_call_surcharge?: number;
     per_sms_surcharge?: number;
     is_active?: boolean;
+    stripe_account_id?: string | null;
 }
 
 export interface UpdateMappingsRequest {
@@ -86,7 +90,7 @@ export interface UpdateMappingsRequest {
 }
 
 export type ClientApiResponse = ApiResponse<Client>;
-export type ClientListApiResponse = ApiResponse<{ clients: Client[] }>;
+export type ClientListApiResponse = ApiResponse<{ clients: Client[]; pagination?: ApiResponse<any>['pagination'] }>;
 
 export interface InviteUserRequest {
     email: string;
@@ -110,7 +114,7 @@ export interface InvitationResponse {
 }
 
 export type InvitationApiResponse = ApiResponse<InvitationResponse>;
-export type UserListApiResponse = ApiResponse<{ users: import('./api').User[] }>;
+export type UserListApiResponse = ApiResponse<{ users: import('./api').User[]; pagination?: ApiResponse<any>['pagination'] }>;
 
 export interface CreditAdjustmentRequest {
     amount: number;
@@ -134,3 +138,33 @@ export interface CreditAdjustmentResponse {
 }
 
 export type CreditAdjustmentApiResponse = ApiResponse<CreditAdjustmentResponse>;
+
+// Stripe Accounts
+export interface StripeAccount {
+    id: string;
+    name: string;
+    is_default: boolean;
+    is_active: boolean;
+    client_count: number;
+    stripe_secret_key_last4: string;
+    webhook_url: string;
+    created_at: string;
+}
+
+export interface CreateStripeAccountRequest {
+    name: string;
+    stripe_secret_key: string;
+    stripe_webhook_secret: string;
+    is_default?: boolean;
+}
+
+export interface UpdateStripeAccountRequest {
+    name?: string;
+    stripe_secret_key?: string;
+    stripe_webhook_secret?: string;
+    is_default?: boolean;
+    is_active?: boolean;
+}
+
+export type StripeAccountApiResponse = ApiResponse<StripeAccount>;
+export type StripeAccountListApiResponse = ApiResponse<{ accounts: StripeAccount[] }>;
