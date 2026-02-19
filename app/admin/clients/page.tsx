@@ -38,7 +38,7 @@ import {
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { adminApi } from '@/lib/api/admin';
-import { Client, CreateClientRequest } from '@/lib/types/admin';
+import { Client, CreateClientRequest, StripeAccount } from '@/lib/types/admin';
 import { getUserRole } from '@/lib/auth/role';
 
 export default function ClientsPage() {
@@ -51,6 +51,7 @@ export default function ClientsPage() {
     const [currentPage, setCurrentPage] = useState(0);
     const [total, setTotal] = useState(0);
     const CLIENTS_PER_PAGE = 20;
+    const [stripeAccounts, setStripeAccounts] = useState<StripeAccount[]>([]);
     const [newClient, setNewClient] = useState<Partial<CreateClientRequest>>({
         id: '',
         name: '',
@@ -96,6 +97,12 @@ export default function ClientsPage() {
             return;
         }
         fetchClients(currentPage);
+        // Fetch Stripe accounts for the create dialog
+        adminApi.getStripeAccounts().then(resp => {
+            if (resp.success && resp.data?.accounts) {
+                setStripeAccounts(resp.data.accounts);
+            }
+        });
     }, [role, router, currentPage, fetchClients]);
 
     useEffect(() => {
@@ -162,6 +169,9 @@ export default function ClientsPage() {
             }
             if (newClient.backend_url && newClient.backend_url.trim()) {
                 payload.backend_url = newClient.backend_url.trim();
+            }
+            if (newClient.stripe_account_id) {
+                payload.stripe_account_id = newClient.stripe_account_id;
             }
             
             console.log('[CLIENTS] Creating client with payload:', payload);
@@ -303,6 +313,24 @@ export default function ClientsPage() {
                                         <option value="boulevard">Boulevard</option>
                                         <option value="ghl">GHL</option>
                                     </select>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-xs font-bold text-slate-500 ml-1">Stripe Account</Label>
+                                    <select
+                                        className="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold focus:border-emerald-500 focus:outline-none"
+                                        value={newClient.stripe_account_id || ''}
+                                        onChange={(e) => setNewClient({ ...newClient, stripe_account_id: e.target.value || undefined })}
+                                    >
+                                        <option value="">Default Account</option>
+                                        {stripeAccounts.map(account => (
+                                            <option key={account.id} value={account.id}>
+                                                {account.name}{account.is_default ? ' (Default)' : ''}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <p className="text-[10px] font-medium text-slate-400 ml-1">
+                                        Optional — leave as default unless this client needs a specific Stripe account
+                                    </p>
                                 </div>
                             </div>
 
