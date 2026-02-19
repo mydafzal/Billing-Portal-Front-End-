@@ -101,6 +101,10 @@ export default function ClientsPage() {
         adminApi.getStripeAccounts().then(resp => {
             if (resp.success && resp.data?.accounts) {
                 setStripeAccounts(resp.data.accounts);
+                const defaultAccount = resp.data.accounts.find(a => a.is_default);
+                if (defaultAccount) {
+                    setNewClient(prev => ({ ...prev, stripe_account_id: defaultAccount.id }));
+                }
             }
         });
     }, [role, router, currentPage, fetchClients]);
@@ -321,16 +325,12 @@ export default function ClientsPage() {
                                         value={newClient.stripe_account_id || ''}
                                         onChange={(e) => setNewClient({ ...newClient, stripe_account_id: e.target.value || undefined })}
                                     >
-                                        <option value="">Default Account</option>
                                         {stripeAccounts.map(account => (
                                             <option key={account.id} value={account.id}>
-                                                {account.name}{account.is_default ? ' (Default)' : ''}
+                                                {account.name}
                                             </option>
                                         ))}
                                     </select>
-                                    <p className="text-[10px] font-medium text-slate-400 ml-1">
-                                        Optional — leave as default unless this client needs a specific Stripe account
-                                    </p>
                                 </div>
                             </div>
 
