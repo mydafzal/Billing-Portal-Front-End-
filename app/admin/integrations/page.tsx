@@ -384,9 +384,18 @@ export default function IntegrationsPage() {
                                         </div>
                                     </TableCell>
                                     <TableCell className="text-center">
-                                        <span className="text-sm font-bold tabular-nums text-slate-900">
-                                            {account.client_count}
-                                        </span>
+                                        {account.client_count > 0 ? (
+                                            <span
+                                                className="text-sm font-bold tabular-nums text-slate-900 cursor-default underline decoration-dotted decoration-slate-300 underline-offset-2"
+                                                title={account.client_names?.join(', ')}
+                                            >
+                                                {account.client_count}
+                                            </span>
+                                        ) : (
+                                            <span className="text-sm font-bold tabular-nums text-slate-400">
+                                                0
+                                            </span>
+                                        )}
                                     </TableCell>
                                     <TableCell>
                                         {account.is_active ? (

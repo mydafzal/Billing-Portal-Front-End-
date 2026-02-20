@@ -92,13 +92,13 @@ export default function SettingsPage() {
         
         // Check for common error cases - case insensitive
         const lowerMessage = errorMessage.toLowerCase();
-        if (lowerMessage.includes('client') || lowerMessage.includes('no client') || lowerMessage.includes('client associated')) {
-          toast.error('Organization Required', {
-            description: 'You must be assigned to an organization to access billing portal. Please contact your administrator.'
-          });
-        } else if (lowerMessage.includes('stripe') || lowerMessage.includes('customer') || lowerMessage.includes('no user associated')) {
+        if (lowerMessage.includes('stripe') || lowerMessage.includes('customer') || lowerMessage.includes('no user associated')) {
           toast.error('Billing Account Not Set Up', {
             description: 'Please add funds via Dashboard first to activate your Stripe billing account.'
+          });
+        } else if (lowerMessage.includes('no client') || lowerMessage.includes('client id')) {
+          toast.error('Organization Required', {
+            description: 'You must be assigned to an organization to access billing portal. Please contact your administrator.'
           });
         } else {
           toast.error('Failed to Access Billing Portal', {
@@ -112,13 +112,13 @@ export default function SettingsPage() {
       
       if (error?.response?.status === 400) {
         const lowerErrorMsg = (errorMsg || '').toLowerCase();
-        if (lowerErrorMsg.includes('client') || lowerErrorMsg.includes('no client') || lowerErrorMsg.includes('client associated')) {
-          toast.error('Organization Required', {
-            description: 'You must be assigned to an organization to access billing portal. Please contact your administrator.'
-          });
-        } else if (lowerErrorMsg.includes('stripe') || lowerErrorMsg.includes('customer') || lowerErrorMsg.includes('no user associated')) {
+        if (lowerErrorMsg.includes('stripe') || lowerErrorMsg.includes('customer') || lowerErrorMsg.includes('no user associated')) {
           toast.error('Billing Account Not Set Up', {
             description: 'Please add funds via Dashboard first to activate your Stripe billing account.'
+          });
+        } else if (lowerErrorMsg.includes('no client') || lowerErrorMsg.includes('client id')) {
+          toast.error('Organization Required', {
+            description: 'You must be assigned to an organization to access billing portal. Please contact your administrator.'
           });
         } else {
           toast.error('Failed to Access Billing Portal', {
