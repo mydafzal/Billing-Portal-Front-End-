@@ -146,6 +146,7 @@ export interface StripeAccount {
     is_default: boolean;
     is_active: boolean;
     client_count: number;
+    client_names: string[];
     stripe_secret_key_last4: string;
     webhook_url: string;
     created_at: string;

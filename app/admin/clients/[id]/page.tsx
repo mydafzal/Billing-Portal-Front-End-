@@ -507,7 +507,7 @@ export default function ClientDetailsPage({ params }: { params: Promise<{ id: st
                                         <Label className="text-xs font-bold text-slate-500 ml-1">Stripe Account</Label>
                                         <select
                                             className="flex h-9 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold focus:border-emerald-500 focus:outline-none"
-                                            value={client.stripe_account_id || ''}
+                                            value={client.stripe_account_id || stripeAccounts.find(a => a.is_default)?.id || ''}
                                             onChange={(e) => handleStripeAccountChange(e.target.value)}
                                             disabled={savingStripeAccount}
                                         >

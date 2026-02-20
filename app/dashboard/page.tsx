@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import {
   Wallet,
   Activity,
@@ -45,6 +47,8 @@ export default function DashboardPage() {
   const [transactionTotal, setTransactionTotal] = useState(0);
   const [loadingTransactions, setLoadingTransactions] = useState(false);
   const [adminOverview, setAdminOverview] = useState<PlatformOverviewResponse | null>(null);
+  const [showTopupDialog, setShowTopupDialog] = useState(false);
+  const [topupAmount, setTopupAmount] = useState<string>('50');
   const TRANSACTIONS_PER_PAGE = 5;
 
   const fetchBilling = async () => {
@@ -152,12 +156,27 @@ export default function DashboardPage() {
     }
   }, [transactionPage, user?.client_id, billingData, role, loading, fetchTransactions]);
 
-  const handleTopup = async () => {
+  const handleTopup = () => {
     if (role === 'viewer') return;
+    setTopupAmount('50');
+    setShowTopupDialog(true);
+  };
+
+  const handleTopupConfirm = async () => {
+    const amount = parseFloat(topupAmount);
+    if (isNaN(amount) || amount < 10) {
+      toast.error('Invalid amount', { description: 'Minimum top-up is $10.' });
+      return;
+    }
+    if (amount > 10000) {
+      toast.error('Invalid amount', { description: 'Maximum top-up is $10,000.' });
+      return;
+    }
     try {
       setIsProcessing(true);
-      const response = await billingApi.createTopup(50); // Default $50
+      const response = await billingApi.createTopup(amount);
       if (response.success && response.data?.checkout_url) {
+        setShowTopupDialog(false);
         window.location.href = response.data.checkout_url;
       }
     } catch (error: any) {
@@ -178,13 +197,13 @@ export default function DashboardPage() {
         const errorMessage = response.error?.message || 'Failed to get portal URL';
         
         // Check for common error cases
-        if (errorMessage.includes('client') || errorMessage.includes('Client ID') || errorMessage.includes('No client')) {
-          toast.error('Organization Required', {
-            description: 'You must be assigned to an organization to access billing portal.'
-          });
-        } else if (errorMessage.includes('Stripe') || errorMessage.includes('customer') || errorMessage.includes('no user associated')) {
+        if (errorMessage.includes('Stripe') || errorMessage.includes('customer') || errorMessage.includes('no user associated')) {
           toast.error('Billing Account Not Set Up', {
             description: 'Please add funds via Dashboard first to activate your Stripe billing account.'
+          });
+        } else if (errorMessage.includes('No client') || errorMessage.includes('Client ID')) {
+          toast.error('Organization Required', {
+            description: 'You must be assigned to an organization to access billing portal.'
           });
         } else {
           toast.error('Failed to Access Billing Portal', {
@@ -197,13 +216,13 @@ export default function DashboardPage() {
       const errorMsg = error?.response?.data?.error?.message || error?.response?.data?.detail || error.message;
       
       if (error?.response?.status === 400) {
-        if (errorMsg?.includes('client') || errorMsg?.includes('Client ID') || errorMsg?.includes('No client')) {
-          toast.error('Organization Required', {
-            description: 'You must be assigned to an organization to access billing portal.'
-          });
-        } else if (errorMsg?.includes('Stripe') || errorMsg?.includes('customer') || errorMsg?.includes('no user associated')) {
+        if (errorMsg?.includes('Stripe') || errorMsg?.includes('customer') || errorMsg?.includes('no user associated')) {
           toast.error('Billing Account Not Set Up', {
             description: 'Please add funds via Dashboard first to activate your Stripe billing account.'
+          });
+        } else if (errorMsg?.includes('No client') || errorMsg?.includes('Client ID')) {
+          toast.error('Organization Required', {
+            description: 'You must be assigned to an organization to access billing portal.'
           });
         } else {
           toast.error('Failed to Access Billing Portal', {
@@ -612,6 +631,73 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* Top-up Amount Dialog */}
+      <Dialog open={showTopupDialog} onOpenChange={setShowTopupDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-slate-900">Add Funds</DialogTitle>
+            <DialogDescription className="text-sm text-slate-500">
+              Choose an amount to add to your wallet.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-4 gap-2">
+              {[25, 50, 100, 200].map((preset) => (
+                <Button
+                  key={preset}
+                  variant={topupAmount === String(preset) ? 'default' : 'outline'}
+                  className={
+                    topupAmount === String(preset)
+                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white font-bold'
+                      : 'hover:border-emerald-300 hover:bg-emerald-50 font-semibold'
+                  }
+                  onClick={() => setTopupAmount(String(preset))}
+                >
+                  ${preset}
+                </Button>
+              ))}
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Custom Amount</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-semibold text-sm">$</span>
+                <Input
+                  type="number"
+                  min={10}
+                  max={10000}
+                  step="0.01"
+                  value={topupAmount}
+                  onChange={(e) => setTopupAmount(e.target.value)}
+                  className="pl-7 font-semibold"
+                  placeholder="Enter amount"
+                />
+              </div>
+              <p className="text-[10px] font-medium text-slate-400">Minimum $10 · Maximum $10,000</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setShowTopupDialog(false)}
+              className="font-semibold"
+            >
+              Cancel
+            </Button>
+            <Button
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+              onClick={handleTopupConfirm}
+              disabled={isProcessing || !topupAmount || parseFloat(topupAmount) < 10}
+            >
+              {isProcessing ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...</>
+              ) : (
+                <>Proceed to Payment · ${parseFloat(topupAmount || '0').toFixed(2)}</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
